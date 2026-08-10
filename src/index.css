@@ -50,6 +50,13 @@ body {
 }
 
 /* ===== Vista imprimible del Presupuesto ===== */
+.presupuesto,
+.presupuesto * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  color-adjust: exact;
+}
+
 .presupuesto .pres-page {
   width: 210mm;
   min-height: 297mm;
