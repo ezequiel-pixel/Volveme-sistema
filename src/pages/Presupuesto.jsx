@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
-import { Printer, ArrowLeft, MessageCircle, Loader2 } from 'lucide-react'
+import {
+  Printer, ArrowLeft, MessageCircle, Loader2,
+  Coffee, Heart, Leaf, Snowflake,
+} from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -12,6 +15,12 @@ function formatFecha(fechaStr) {
   return new Date(fechaStr + 'T00:00:00').toLocaleDateString('es-AR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
   })
+}
+
+function slug(str) {
+  return (str || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
 export default function Presupuesto() {
@@ -43,14 +52,35 @@ export default function Presupuesto() {
     cargar()
   }, [id])
 
+  // Nombre de archivo prolijo para "Guardar como PDF" del navegador
+  useEffect(() => {
+    if (!cotizacion) return
+    const primerDia = dias[0]
+    const nombreArchivo = [
+      'Presupuesto Volveme',
+      cotizacion.clientes?.nombre,
+      primerDia ? formatFecha(primerDia.fecha).replaceAll('/', '-') : null,
+      cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
+    ].filter(Boolean).join(' - ')
+    document.title = nombreArchivo
+    return () => { document.title = 'Volveme' }
+  }, [cotizacion, dias])
+
   async function handleEnviarWhatsapp() {
     setEnviando(true)
     setEnvioError('')
     try {
       const blob = await generarPdfBlob(contenidoRef.current)
-      const url = await subirPdf(blob, cotizacion.id)
-
       const primerDia = dias[0]
+      const nombreArchivo = [
+        'presupuesto-volveme',
+        slug(cotizacion.clientes?.nombre),
+        primerDia?.fecha,
+        cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
+      ].filter(Boolean).join('-') + '.pdf'
+
+      const url = await subirPdf(blob, nombreArchivo)
+
       const mensaje =
         `¡Hola ${cotizacion.clientes?.nombre || ''}! Te paso el presupuesto de Volveme para tu evento` +
         `${primerDia ? ` del ${formatFecha(primerDia.fecha)}` : ''}:\n\n${url}\n\n` +
@@ -60,6 +90,7 @@ export default function Presupuesto() {
       window.open(link, '_blank')
     } catch (err) {
       setEnvioError('No se pudo generar o subir el PDF. Probá de nuevo.')
+      console.error(err)
     }
     setEnviando(false)
   }
@@ -105,7 +136,7 @@ export default function Presupuesto() {
         </div>
       </div>
 
-      <div className="presupuesto max-w-[820px] mx-auto bg-paper">
+      <div ref={contenidoRef} className="presupuesto max-w-[820px] mx-auto bg-paper">
         {/* ============ PÁGINA 1 — PORTADA ============ */}
         <section className="pres-page flex flex-col">
           <div className="text-center pt-12 pb-8 px-10">
@@ -120,7 +151,7 @@ export default function Presupuesto() {
             Ya sea una boda, una fiesta o una reunión empresarial, Volveme lleva la barra a tu evento.
           </p>
 
-          <div className="flex-1 bg-peach/60 mx-10 rounded" style={{ minHeight: '280px' }} />
+          <img src="/images/portada.jpg" alt="" className="mx-10 rounded object-cover" style={{ minHeight: '280px', maxHeight: '280px' }} />
 
           <div className="bg-peach text-center py-8 px-10 mt-8">
             <p className="text-xs tracking-[0.15em] uppercase text-ink-mid mb-2">Presupuesto para</p>
@@ -157,10 +188,56 @@ export default function Presupuesto() {
             <DatoEvento label="Cant. invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
           </div>
 
+          <div className="mt-10">
+            <img src="/images/evento-detalle.jpg" alt="" className="mx-10 rounded object-cover" style={{ minHeight: '140px', maxHeight: '180px', width: 'calc(100% - 5rem)' }} />
+          </div>
+
           <Footer />
         </section>
 
-        {/* ============ PÁGINA 3 — QUÉ INCLUYE + PRECIO ============ */}
+        {/* ============ PÁGINA 3 — CAFÉ ESPECIAL ============ */}
+        <section className="pres-page flex flex-col justify-center px-14">
+          <h2 className="font-display text-2xl text-center text-wine mb-3">Café especial</h2>
+          <p className="text-center text-sm text-ink-mid px-8 mb-2">
+            En Volveme seleccionamos el café para cada evento, buscando el perfil que mejor se adapta a lo que querés crear.
+          </p>
+          <p className="text-center text-sm text-ink-mid px-8 mb-10">
+            Trabajamos con granos seleccionados de origen, tostados cuidadosamente para ofrecer una bebida equilibrada y memorable.
+          </p>
+
+          <div className="grid grid-cols-2 gap-x-8 gap-y-10">
+            <FeatureIcono icon={Coffee} titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
+            <FeatureIcono icon={Heart} titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
+            <FeatureIcono icon={Snowflake} titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
+            <FeatureIcono icon={Leaf} titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
+          </div>
+
+          <Footer />
+        </section>
+
+        {/* ============ PÁGINA 4 — NUESTRAS PREPARACIONES ============ */}
+        <section className="pres-page flex flex-col justify-center px-14">
+          <h2 className="font-display text-2xl text-center text-wine mb-8">Nuestras preparaciones</h2>
+
+          <MenuSeccion titulo="Sin leche" items={[
+            { nombre: 'Espresso', desc: 'Corto e intenso' },
+            { nombre: 'Americano', desc: 'Doble espresso con agua — más liviano' },
+          ]} />
+          <MenuSeccion titulo="Con leche" items={[
+            { nombre: 'Latte', desc: 'Espresso con mucha leche — suave' },
+            { nombre: 'Flat White', desc: 'Doble espresso con leche — se destaca el café' },
+            { nombre: 'Capuccino', desc: 'Espresso con leche — equilibrado y cremoso' },
+          ]} />
+          <MenuSeccion titulo="Fríos" items={[
+            { nombre: 'Ice Latte', desc: 'Espresso con leche — fresco y equilibrado' },
+            { nombre: 'Ice Coffee', desc: 'Doble espresso con agua — fresco y liviano' },
+            { nombre: 'Espresso Tonic', desc: 'Espresso con tónica — fresco y burbujeante' },
+          ]} />
+
+          <Footer />
+        </section>
+
+        {/* ============ PÁGINA 5 — QUÉ INCLUYE + PRECIO ============ */}
         <section className="pres-page flex flex-col justify-center px-14">
           <h2 className="font-display text-2xl text-center text-wine mb-8">¿Qué incluye nuestro servicio?</h2>
 
@@ -206,15 +283,59 @@ export default function Presupuesto() {
           <Footer />
         </section>
 
-        {/* ============ PÁGINA 4 — CIERRE ============ */}
-        <section className="pres-page flex flex-col justify-center items-center bg-peach">
-          <p className="font-display text-3xl text-wine text-center leading-tight px-16">
-            volveme<sup className="text-lg">®</sup> la barra de café<br />para tu próximo <em className="font-accent text-orange not-italic">evento</em>.
-          </p>
-          <div className="mt-16">
-            <Footer />
+        {/* ============ PÁGINA 6 — ASÍ VIVIMOS NUESTROS EVENTOS ============ */}
+        <section className="pres-page flex flex-col justify-center px-10">
+          <h2 className="font-display text-2xl text-center text-wine mb-8">Así vivimos nuestros eventos</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {['galeria-1', 'galeria-2', 'galeria-3', 'galeria-4', 'galeria-5', 'galeria-6'].map((img) => (
+              <img
+                key={img}
+                src={`/images/${img}.jpg`}
+                alt=""
+                className="w-full h-40 object-cover rounded"
+              />
+            ))}
           </div>
+          <Footer />
         </section>
+
+        {/* ============ PÁGINA 7 — CIERRE ============ */}
+        <section className="pres-page relative flex flex-col justify-end items-center bg-peach overflow-hidden">
+          <img src="/images/galeria-2.jpg" alt="" className="absolute inset-0 w-full h-2/3 object-cover" />
+          <div className="relative bg-peach w-full text-center pt-10 pb-6">
+            <p className="font-display text-3xl text-wine leading-tight px-16">
+              volveme<sup className="text-lg">®</sup> la barra de café<br />para tu próximo <em className="font-accent text-orange not-italic">evento</em>.
+            </p>
+          </div>
+          <Footer />
+        </section>
+      </div>
+    </div>
+  )
+}
+
+
+function FeatureIcono({ icon: Icon, titulo, texto }) {
+  return (
+    <div className="text-center">
+      <Icon size={26} strokeWidth={1.5} className="text-orange mx-auto mb-3" />
+      <p className="font-medium text-sm text-ink mb-1">{titulo}</p>
+      <p className="text-xs text-ink-mid leading-snug">{texto}</p>
+    </div>
+  )
+}
+
+function MenuSeccion({ titulo, items }) {
+  return (
+    <div className="mb-6">
+      <p className="text-center text-xs uppercase tracking-[0.15em] text-orange font-medium mb-3">{titulo}</p>
+      <div className="grid grid-cols-3 gap-4">
+        {items.map((it) => (
+          <div key={it.nombre} className="text-center">
+            <p className="text-sm font-medium text-ink">{it.nombre}</p>
+            <p className="text-[11px] text-ink-mid leading-snug">{it.desc}</p>
+          </div>
+        ))}
       </div>
     </div>
   )
