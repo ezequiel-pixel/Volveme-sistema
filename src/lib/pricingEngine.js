@@ -14,8 +14,20 @@ const COSTO_VASO_X50_POR_TAMANO = {
   '12oz': 'costo_vaso_12oz_x50',
 }
 
+function horasEntreHorarios(horaInicio, horaFin) {
+  if (!horaInicio || !horaFin) return 0
+  const [h1, m1] = horaInicio.split(':').map(Number)
+  const [h2, m2] = horaFin.split(':').map(Number)
+  let minutos = (h2 * 60 + m2) - (h1 * 60 + m1)
+  if (minutos < 0) minutos += 24 * 60 // cruza medianoche
+  return minutos / 60
+}
+
 export function calcularCotizacion(inputs, config, amortizaciones) {
   const c = config
+  const dias = inputs.dias && inputs.dias.length ? inputs.dias : [{ horaInicio: '08:00', horaFin: '08:00' }]
+  const cantidadDias = dias.length
+  const totalHoras = dias.reduce((sum, d) => sum + horasEntreHorarios(d.horaInicio, d.horaFin), 0)
 
   const cafePorBebida = c.gramos_espresso * (c.precio_kilo_cafe / 1000)
 
@@ -49,17 +61,17 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const totalInsumos = insumosEsenciales + recargoPremium + costoCalcos + costoLogo3d
 
   const sueldoBaristas =
-    inputs.cantidad_baristas * inputs.duracion_horas * inputs.cantidad_dias * c.sueldo_barista_hora
-  const viaticosBaristas = inputs.cantidad_baristas * c.extra_viaticos_barista
+    inputs.cantidad_baristas * totalHoras * c.sueldo_barista_hora
+  const viaticosBaristas = inputs.cantidad_baristas * c.extra_viaticos_barista * cantidadDias
   const totalManoDeObra = sueldoBaristas + viaticosBaristas
 
   const amortizacionDia = inputs.amortizacion_override ?? amortizaciones[inputs.tipo_barra] ?? 0
-  const amortizacionTotal = amortizacionDia * inputs.cantidad_dias
+  const amortizacionTotal = amortizacionDia * cantidadDias
 
   const alquilerMaquinaExtra = inputs.alquiler_maquina_extra
-    ? c.tarifa_maquina_extra_dia * inputs.cantidad_dias : 0
+    ? c.tarifa_maquina_extra_dia * cantidadDias : 0
   const alquilerMolinoExtra = inputs.alquiler_molino_extra
-    ? c.tarifa_molino_extra_dia * inputs.cantidad_dias : 0
+    ? c.tarifa_molino_extra_dia * cantidadDias : 0
 
   const flete = inputs.costo_flete || 0
   const art = inputs.art ? inputs.art_monto || 0 : 0
@@ -81,6 +93,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const consumoPromedioPorPersona = inputs.cantidad_pax > 0 ? precioFinal / inputs.cantidad_pax : 0
 
   return {
+    cantidadDias, totalHoras,
     costoEsencialPorBebida, bebidasEstimadas, bebidasReales,
     insumosEsenciales, recargoPremium, costoCalcos, costoLogo3d, totalInsumos,
     sueldoBaristas, viaticosBaristas, totalManoDeObra,

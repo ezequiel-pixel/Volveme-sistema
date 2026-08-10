@@ -54,6 +54,25 @@ export default function Cotizaciones() {
         return
       }
 
+      // copiar los días con su horario propio de la cotización al evento
+      const { data: diasCot } = await supabase
+        .from('cotizacion_dias')
+        .select('fecha, hora_inicio, hora_fin, orden')
+        .eq('cotizacion_id', cotizacion.id)
+        .order('orden')
+
+      if (diasCot && diasCot.length) {
+        await supabase.from('evento_dias').insert(
+          diasCot.map((d) => ({
+            evento_id: nuevoEvento.id,
+            fecha: d.fecha,
+            hora_inicio: d.hora_inicio,
+            hora_fin: d.hora_fin,
+            orden: d.orden,
+          }))
+        )
+      }
+
       await supabase
         .from('cotizaciones')
         .update({ estado: nuevoEstado, evento_id: nuevoEvento.id })
@@ -152,19 +171,22 @@ export default function Cotizaciones() {
 }
 
 const defaultInputs = {
-  nombre_cliente: '', nombre_evento: '', fecha_evento: '', hora_inicio: '', lugar: '',
-  cantidad_pax: 25, duracion_horas: 3, cantidad_dias: 1, nivel: 'Esencial', tamano_vaso: '6oz',
+  nombre_cliente: '', nombre_evento: '', lugar: '',
+  cantidad_pax: 25, nivel: 'Esencial', tamano_vaso: '6oz',
   cantidad_cafes_override: '', cantidad_baristas: 1, tipo_barra: 'Barra chica 1 grupo',
   amortizacion_override: '', alquiler_maquina_extra: false, alquiler_molino_extra: false,
   calcos: false, logo_3d: false, costo_flete: 0, art: false, art_monto: 0,
   clausula_rc_monto: 0, multiplicador: '', iva_pct: '',
 }
 
+const defaultDia = () => ({ fecha: '', horaInicio: '08:00', horaFin: '18:00' })
+
 function NuevaCotizacionModal({ onClose, onCreated }) {
   const [config, setConfig] = useState(null)
   const [amortizaciones, setAmortizaciones] = useState(null)
   const [tiposBarra, setTiposBarra] = useState([])
   const [inputs, setInputs] = useState(defaultInputs)
+  const [dias, setDias] = useState([defaultDia()])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -183,13 +205,34 @@ function NuevaCotizacionModal({ onClose, onCreated }) {
     setInputs((f) => ({ ...f, [field]: value }))
   }
 
+  function updateDia(index, field, value) {
+    setDias((prev) => prev.map((d, i) => (i === index ? { ...d, [field]: value } : d)))
+  }
+
+  function agregarDia() {
+    setDias((prev) => {
+      const ultimo = prev[prev.length - 1]
+      // sugiere el día siguiente al último cargado, mismo horario
+      let fechaSugerida = ''
+      if (ultimo?.fecha) {
+        const d = new Date(ultimo.fecha + 'T00:00:00')
+        d.setDate(d.getDate() + 1)
+        fechaSugerida = d.toISOString().slice(0, 10)
+      }
+      return [...prev, { fecha: fechaSugerida, horaInicio: ultimo?.horaInicio || '08:00', horaFin: ultimo?.horaFin || '18:00' }]
+    })
+  }
+
+  function quitarDia(index) {
+    setDias((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
+  }
+
   const resultado = config && amortizaciones
     ? calcularCotizacion(
         {
           ...inputs,
+          dias,
           cantidad_pax: Number(inputs.cantidad_pax) || 0,
-          duracion_horas: Number(inputs.duracion_horas) || 0,
-          cantidad_dias: Number(inputs.cantidad_dias) || 1,
           cantidad_cafes_override: inputs.cantidad_cafes_override ? Number(inputs.cantidad_cafes_override) : null,
           cantidad_baristas: Number(inputs.cantidad_baristas) || 0,
           amortizacion_override: inputs.amortizacion_override ? Number(inputs.amortizacion_override) : null,
@@ -208,6 +251,12 @@ function NuevaCotizacionModal({ onClose, onCreated }) {
     setSaving(true)
     setError('')
 
+    if (dias.some((d) => !d.fecha)) {
+      setError('Completá la fecha de cada día del evento.')
+      setSaving(false)
+      return
+    }
+
     let clienteId = null
     if (inputs.nombre_cliente.trim()) {
       const { data: existente } = await supabase
@@ -222,15 +271,16 @@ function NuevaCotizacionModal({ onClose, onCreated }) {
       }
     }
 
-    const { error: errCot } = await supabase.from('cotizaciones').insert({
+    const diasOrdenados = [...dias].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    const primerDia = diasOrdenados[0]
+
+    const { data: nuevaCot, error: errCot } = await supabase.from('cotizaciones').insert({
       cliente_id: clienteId,
       nombre_evento: inputs.nombre_evento || `Evento — ${inputs.nombre_cliente}`,
-      fecha_evento: inputs.fecha_evento || null,
-      hora_inicio: inputs.hora_inicio || null,
+      fecha_evento: primerDia.fecha,
+      hora_inicio: primerDia.horaInicio,
       lugar: inputs.lugar || null,
       cantidad_pax: Number(inputs.cantidad_pax) || null,
-      duracion_horas: Number(inputs.duracion_horas) || null,
-      cantidad_dias: Number(inputs.cantidad_dias) || 1,
       nivel: inputs.nivel,
       tamano_vaso: inputs.tamano_vaso,
       cantidad_cafes_override: inputs.cantidad_cafes_override ? Number(inputs.cantidad_cafes_override) : null,
@@ -253,10 +303,22 @@ function NuevaCotizacionModal({ onClose, onCreated }) {
       iva_monto: resultado.ivaMonto,
       precio_final: resultado.precioFinal,
       margen_pct: resultado.margenPct,
-    })
+    }).select('id').single()
+
+    if (errCot) { setSaving(false); setError('No se pudo guardar la cotización.'); return }
+
+    const { error: errDias } = await supabase.from('cotizacion_dias').insert(
+      diasOrdenados.map((d, i) => ({
+        cotizacion_id: nuevaCot.id,
+        fecha: d.fecha,
+        hora_inicio: d.horaInicio,
+        hora_fin: d.horaFin,
+        orden: i,
+      }))
+    )
 
     setSaving(false)
-    if (errCot) { setError('No se pudo guardar la cotización.'); return }
+    if (errDias) { setError('La cotización se guardó, pero hubo un error guardando los días.'); return }
     onCreated()
   }
 
@@ -288,14 +350,6 @@ function NuevaCotizacionModal({ onClose, onCreated }) {
                 </Field>
               </Row>
               <Row>
-                <Field label="Fecha" required>
-                  <input type="date" required value={inputs.fecha_evento} onChange={(e) => update('fecha_evento', e.target.value)} className="input" />
-                </Field>
-                <Field label="Hora">
-                  <input type="time" value={inputs.hora_inicio} onChange={(e) => update('hora_inicio', e.target.value)} className="input" />
-                </Field>
-              </Row>
-              <Row>
                 <Field label="Lugar">
                   <input value={inputs.lugar} onChange={(e) => update('lugar', e.target.value)} className="input" />
                 </Field>
@@ -305,15 +359,31 @@ function NuevaCotizacionModal({ onClose, onCreated }) {
               </Row>
             </Section>
 
+            <Section title={`Días del evento (${dias.length})`}>
+              {dias.map((dia, i) => (
+                <div key={i} className="flex items-end gap-2 bg-paper border border-rule rounded p-3">
+                  <Field label={`Día ${i + 1}`}>
+                    <input type="date" required value={dia.fecha} onChange={(e) => updateDia(i, 'fecha', e.target.value)} className="input" />
+                  </Field>
+                  <Field label="Desde">
+                    <input type="time" required value={dia.horaInicio} onChange={(e) => updateDia(i, 'horaInicio', e.target.value)} className="input" />
+                  </Field>
+                  <Field label="Hasta">
+                    <input type="time" required value={dia.horaFin} onChange={(e) => updateDia(i, 'horaFin', e.target.value)} className="input" />
+                  </Field>
+                  {dias.length > 1 && (
+                    <button type="button" onClick={() => quitarDia(i)} className="text-ink-light hover:text-coral pb-2.5">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={agregarDia} className="flex items-center gap-1 text-xs text-blue-dark hover:underline">
+                <Plus size={13} /> Agregar otro día
+              </button>
+            </Section>
+
             <Section title="Servicio">
-              <Row>
-                <Field label="Duración (hs/día)">
-                  <input type="number" min="0" value={inputs.duracion_horas} onChange={(e) => update('duracion_horas', e.target.value)} className="input" />
-                </Field>
-                <Field label="Cantidad de días">
-                  <input type="number" min="1" value={inputs.cantidad_dias} onChange={(e) => update('cantidad_dias', e.target.value)} className="input" />
-                </Field>
-              </Row>
               <Row>
                 <Field label="Nivel">
                   <select value={inputs.nivel} onChange={(e) => update('nivel', e.target.value)} className="input">
@@ -376,6 +446,7 @@ function NuevaCotizacionModal({ onClose, onCreated }) {
             <p className="text-xs uppercase tracking-wide text-ink-light mb-3">Cálculo en vivo</p>
             {resultado && (
               <div className="space-y-3 text-sm">
+                <LineaResumen label="Días de evento" valor={`${resultado.cantidadDias} (${resultado.totalHoras.toFixed(1)} hs totales)`} />
                 <LineaResumen label="Bebidas a preparar" valor={resultado.bebidasReales.toFixed(1)} />
                 <LineaResumen label="Total insumos" valor={money(resultado.totalInsumos)} />
                 <LineaResumen label="Mano de obra" valor={money(resultado.totalManoDeObra)} />

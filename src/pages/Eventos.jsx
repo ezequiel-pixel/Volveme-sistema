@@ -20,7 +20,7 @@ export default function Eventos() {
     setLoading(true)
     const { data, error } = await supabase
       .from('eventos')
-      .select('id, nombre, fecha, hora_inicio, lugar, estado, cantidad_personas, cotizacion_id, clientes(nombre)')
+      .select('id, nombre, fecha, hora_inicio, lugar, estado, cantidad_personas, cotizacion_id, clientes(nombre), evento_dias(id)')
       .order('fecha', { ascending: true })
 
     if (!error) setEventos(data)
@@ -106,6 +106,11 @@ export default function Eventos() {
                     year: 'numeric',
                   })}
                   {ev.hora_inicio && <span className="text-ink-light ml-1.5">{ev.hora_inicio.slice(0, 5)}</span>}
+                  {ev.evento_dias?.length > 1 && (
+                    <span className="ml-1.5 text-[10px] uppercase tracking-wide text-blue-dark bg-blue-light rounded-full px-1.5 py-0.5">
+                      {ev.evento_dias.length} días
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 font-medium text-ink">
                   {ev.nombre}
