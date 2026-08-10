@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Plus, FileText } from 'lucide-react'
 
@@ -7,15 +7,26 @@ const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
 const estadoStyles = {
-  borrador: 'bg-paper-warm text-ink-mid',
   enviada: 'bg-peach text-orange',
-  aceptada: 'bg-blue-light text-blue-dark',
-  rechazada: 'bg-coral-light text-coral',
+  negociacion: 'bg-blue-light text-blue-dark',
+  aceptada: 'bg-wine text-paper',
+  cancelada: 'bg-coral-light text-coral',
+  recotizada: 'bg-paper-warm text-ink-light',
+}
+
+const estadoLabel = {
+  enviada: 'Enviada',
+  negociacion: 'En negociación',
+  aceptada: 'Aceptada',
+  cancelada: 'Cancelada',
+  recotizada: 'Re-cotizada',
 }
 
 export default function Cotizaciones() {
+  const navigate = useNavigate()
   const [cotizaciones, setCotizaciones] = useState([])
   const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro] = useState('todos')
 
   async function cargar() {
     setLoading(true)
@@ -81,6 +92,14 @@ export default function Cotizaciones() {
     cargar()
   }
 
+  async function recotizar(cotizacion) {
+    await supabase.from('cotizaciones').update({ estado: 'recotizada' }).eq('id', cotizacion.id)
+    navigate(`/cotizaciones/nueva?desde=${cotizacion.id}`)
+  }
+
+  const cotizacionesFiltradas =
+    filtro === 'todos' ? cotizaciones : cotizaciones.filter((c) => c.estado === filtro)
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -94,6 +113,20 @@ export default function Cotizaciones() {
         >
           <Plus size={15} /> Nueva cotización
         </Link>
+      </div>
+
+      <div className="flex gap-2 mb-5">
+        {['todos', 'enviada', 'negociacion', 'aceptada', 'cancelada', 'recotizada'].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFiltro(f)}
+            className={`text-xs uppercase tracking-wide px-3 py-1.5 rounded-full border transition-colors ${
+              filtro === f ? 'border-wine bg-wine text-paper' : 'border-rule text-ink-light hover:text-ink'
+            }`}
+          >
+            {f === 'todos' ? 'Todos' : estadoLabel[f]}
+          </button>
+        ))}
       </div>
 
       <div className="border border-rule rounded-lg overflow-hidden bg-paper-card">
@@ -112,14 +145,14 @@ export default function Cotizaciones() {
             {loading && (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-ink-light">Cargando…</td></tr>
             )}
-            {!loading && cotizaciones.length === 0 && (
+            {!loading && cotizacionesFiltradas.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-ink-light">
-                  No hay cotizaciones cargadas todavía.
+                  No hay cotizaciones {filtro !== 'todos' ? `en estado "${estadoLabel[filtro]}"` : 'cargadas todavía'}.
                 </td>
               </tr>
             )}
-            {cotizaciones.map((cot) => (
+            {cotizacionesFiltradas.map((cot) => (
               <tr key={cot.id} className="border-b border-rule last:border-0 hover:bg-paper-warm/40">
                 <td className="px-4 py-3">
                   {cot.fecha_evento
@@ -131,11 +164,11 @@ export default function Cotizaciones() {
                 <td className="px-4 py-3 text-ink-mid">{money(cot.precio_final)}</td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-1 rounded-full ${estadoStyles[cot.estado]}`}>
-                    {cot.estado}
+                    {estadoLabel[cot.estado]}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <Link
                       to={`/cotizaciones/${cot.id}/presupuesto`}
                       target="_blank"
@@ -143,22 +176,42 @@ export default function Cotizaciones() {
                     >
                       <FileText size={13} /> PDF
                     </Link>
-                    {cot.estado === 'borrador' && (
-                      <button onClick={() => cambiarEstado(cot, 'enviada')} className="text-xs text-blue-dark hover:underline">
-                        Marcar enviada
+
+                    {cot.estado === 'enviada' && (
+                      <>
+                        <button onClick={() => cambiarEstado(cot, 'negociacion')} className="text-xs text-blue-dark hover:underline">
+                          Pasar a negociación
+                        </button>
+                        <button onClick={() => cambiarEstado(cot, 'aceptada')} className="text-xs text-wine font-medium hover:underline">
+                          Aceptar → crea evento
+                        </button>
+                        <button onClick={() => cambiarEstado(cot, 'cancelada')} className="text-xs text-coral hover:underline">
+                          Cancelar
+                        </button>
+                      </>
+                    )}
+
+                    {cot.estado === 'negociacion' && (
+                      <>
+                        <button onClick={() => cambiarEstado(cot, 'aceptada')} className="text-xs text-wine font-medium hover:underline">
+                          Aceptar → crea evento
+                        </button>
+                        <button onClick={() => recotizar(cot)} className="text-xs text-blue-dark hover:underline">
+                          Re-cotizar
+                        </button>
+                        <button onClick={() => cambiarEstado(cot, 'cancelada')} className="text-xs text-coral hover:underline">
+                          Cancelar
+                        </button>
+                      </>
+                    )}
+
+                    {cot.estado === 'aceptada' && <span className="text-xs text-ink-light">Evento creado ✓</span>}
+                    {cot.estado === 'cancelada' && (
+                      <button onClick={() => recotizar(cot)} className="text-xs text-blue-dark hover:underline">
+                        Re-cotizar
                       </button>
                     )}
-                    {cot.estado === 'enviada' && (
-                      <div className="flex gap-3">
-                        <button onClick={() => cambiarEstado(cot, 'aceptada')} className="text-xs text-blue-dark hover:underline">
-                          Confirmar → crea evento
-                        </button>
-                        <button onClick={() => cambiarEstado(cot, 'rechazada')} className="text-xs text-coral hover:underline">
-                          Rechazar
-                        </button>
-                      </div>
-                    )}
-                    {cot.estado === 'aceptada' && <span className="text-xs text-ink-light">Evento creado ✓</span>}
+                    {cot.estado === 'recotizada' && <span className="text-xs text-ink-light">Reemplazada</span>}
                   </div>
                 </td>
               </tr>

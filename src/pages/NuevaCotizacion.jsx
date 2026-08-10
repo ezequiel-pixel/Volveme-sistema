@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
 import { Plus, X, ArrowLeft, Coffee, CalendarDays, Users, Sparkles } from 'lucide-react'
@@ -20,6 +20,8 @@ const defaultDia = () => ({ fecha: '', horaInicio: '08:00', horaFin: '18:00' })
 
 export default function NuevaCotizacion() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const recotizarDesdeId = searchParams.get('desde')
   const [config, setConfig] = useState(null)
   const [amortizaciones, setAmortizaciones] = useState(null)
   const [tiposBarra, setTiposBarra] = useState([])
@@ -38,6 +40,52 @@ export default function NuevaCotizacion() {
     }
     cargarConfig()
   }, [])
+
+  // Si viene de "Re-cotizar", precarga todos los datos de la cotización anterior
+  useEffect(() => {
+    async function precargar() {
+      if (!recotizarDesdeId) return
+      const { data: cot } = await supabase
+        .from('cotizaciones')
+        .select('*, clientes(nombre)')
+        .eq('id', recotizarDesdeId)
+        .single()
+      const { data: diasCot } = await supabase
+        .from('cotizacion_dias')
+        .select('*')
+        .eq('cotizacion_id', recotizarDesdeId)
+        .order('orden')
+
+      if (cot) {
+        setInputs({
+          nombre_cliente: cot.clientes?.nombre || '',
+          nombre_evento: cot.nombre_evento || '',
+          lugar: cot.lugar || '',
+          cantidad_pax: cot.cantidad_pax || 25,
+          nivel: cot.nivel === 'premium' || cot.nivel === 'Premium' ? 'Premium' : 'Esencial',
+          tamano_vaso: cot.tamano_vaso || '6oz',
+          cantidad_cafes_override: cot.cantidad_cafes_override || '',
+          cantidad_baristas: cot.cantidad_baristas || 1,
+          tipo_barra: cot.tipo_barra || 'Barra chica 1 grupo',
+          amortizacion_override: cot.amortizacion_override || '',
+          alquiler_maquina_extra: cot.alquiler_maquina_extra || false,
+          alquiler_molino_extra: cot.alquiler_molino_extra || false,
+          calcos: cot.calcos || false,
+          logo_3d: cot.logo_3d || false,
+          costo_flete: cot.costo_flete || 0,
+          art: cot.art || false,
+          art_monto: cot.art_monto || 0,
+          clausula_rc_monto: cot.clausula_rc_monto || 0,
+          multiplicador: '',
+          iva_pct: '',
+        })
+      }
+      if (diasCot && diasCot.length) {
+        setDias(diasCot.map((d) => ({ fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5) })))
+      }
+    }
+    precargar()
+  }, [recotizarDesdeId])
 
   function update(field, value) {
     setInputs((f) => ({ ...f, [field]: value }))
@@ -134,7 +182,8 @@ export default function NuevaCotizacion() {
       clausula_rc_monto: Number(inputs.clausula_rc_monto) || 0,
       multiplicador: inputs.multiplicador ? Number(inputs.multiplicador) : config.multiplicador_precio,
       iva_pct: inputs.iva_pct !== '' ? Number(inputs.iva_pct) : config.iva_pct,
-      estado: 'borrador',
+      estado: 'enviada',
+      recotizada_desde_id: recotizarDesdeId || null,
       costo_total: resultado.costoTotal,
       precio_neto: resultado.precioNeto,
       iva_monto: resultado.ivaMonto,
@@ -166,8 +215,15 @@ export default function NuevaCotizacion() {
       </Link>
 
       <div className="mb-8">
-        <p className="text-xs uppercase tracking-wide text-orange font-medium mb-1">Nueva cotización</p>
+        <p className="text-xs uppercase tracking-wide text-orange font-medium mb-1">
+          {recotizarDesdeId ? 'Re-cotización' : 'Nueva cotización'}
+        </p>
         <h1 className="font-display text-3xl">Armá el presupuesto</h1>
+        {recotizarDesdeId && (
+          <p className="text-sm text-blue-dark mt-2">
+            Precargado con los datos de la propuesta anterior — ajustá lo que haga falta.
+          </p>
+        )}
       </div>
 
       {!config ? (

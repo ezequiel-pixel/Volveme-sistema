@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Printer, ArrowLeft } from 'lucide-react'
+import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
+import { Printer, ArrowLeft, MessageCircle, Loader2 } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -18,12 +19,15 @@ export default function Presupuesto() {
   const [cotizacion, setCotizacion] = useState(null)
   const [dias, setDias] = useState([])
   const [loading, setLoading] = useState(true)
+  const [enviando, setEnviando] = useState(false)
+  const [envioError, setEnvioError] = useState('')
+  const contenidoRef = useRef(null)
 
   useEffect(() => {
     async function cargar() {
       const { data: cot } = await supabase
         .from('cotizaciones')
-        .select('*, clientes(nombre)')
+        .select('*, clientes(nombre, telefono)')
         .eq('id', id)
         .single()
       const { data: diasData } = await supabase
@@ -38,6 +42,27 @@ export default function Presupuesto() {
     }
     cargar()
   }, [id])
+
+  async function handleEnviarWhatsapp() {
+    setEnviando(true)
+    setEnvioError('')
+    try {
+      const blob = await generarPdfBlob(contenidoRef.current)
+      const url = await subirPdf(blob, cotizacion.id)
+
+      const primerDia = dias[0]
+      const mensaje =
+        `¡Hola ${cotizacion.clientes?.nombre || ''}! Te paso el presupuesto de Volveme para tu evento` +
+        `${primerDia ? ` del ${formatFecha(primerDia.fecha)}` : ''}:\n\n${url}\n\n` +
+        `Cualquier consulta quedo atento. ¡Gracias!`
+
+      const link = armarLinkWhatsapp(cotizacion.clientes?.telefono, mensaje)
+      window.open(link, '_blank')
+    } catch (err) {
+      setEnvioError('No se pudo generar o subir el PDF. Probá de nuevo.')
+    }
+    setEnviando(false)
+  }
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-ink-light text-sm">Cargando…</div>
@@ -58,12 +83,26 @@ export default function Presupuesto() {
         <Link to="/cotizaciones" className="flex items-center gap-1.5 text-sm text-ink-mid hover:text-ink">
           <ArrowLeft size={15} /> Volver a Cotizaciones
         </Link>
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors"
-        >
-          <Printer size={15} /> Imprimir / Guardar PDF
-        </button>
+        <div className="flex items-center gap-3">
+          {envioError && <span className="text-xs text-coral">{envioError}</span>}
+          {!cotizacion.clientes?.telefono && (
+            <span className="text-xs text-ink-light">Sin teléfono cargado para este cliente</span>
+          )}
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+          >
+            <Printer size={15} /> Imprimir / Guardar
+          </button>
+          <button
+            onClick={handleEnviarWhatsapp}
+            disabled={enviando}
+            className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
+          >
+            {enviando ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}
+            {enviando ? 'Generando PDF…' : 'Enviar por WhatsApp'}
+          </button>
+        </div>
       </div>
 
       <div className="presupuesto max-w-[820px] mx-auto bg-paper">
