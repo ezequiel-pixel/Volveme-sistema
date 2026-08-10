@@ -166,7 +166,7 @@ export default function NuevaCotizacion() {
       hora_inicio: primerDia.horaInicio,
       lugar: inputs.lugar || null,
       cantidad_pax: Number(inputs.cantidad_pax) || null,
-      nivel: inputs.nivel,
+      nivel: inputs.nivel.toLowerCase(),
       tamano_vaso: inputs.tamano_vaso,
       cantidad_cafes_override: inputs.cantidad_cafes_override ? Number(inputs.cantidad_cafes_override) : null,
       cantidad_baristas: Number(inputs.cantidad_baristas) || 1,
