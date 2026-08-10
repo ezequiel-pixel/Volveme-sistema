@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Glitz y Koegan: cargan automáticamente en cuanto subas esos archivos.
+   Hasta entonces, font-display cae a DM Sans como respaldo temporal. */
+
+body {
+  @apply bg-paper text-ink font-sans;
+}
+
+.input {
+  @apply w-full border border-rule rounded px-3 py-2 bg-white text-sm outline-none focus:border-orange;
+}
