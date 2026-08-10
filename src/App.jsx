@@ -3,6 +3,7 @@ import { useAuth } from './lib/useAuth'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Eventos from './pages/Eventos'
+import EventoDetalle from './pages/EventoDetalle'
 import Cotizaciones from './pages/Cotizaciones'
 import NuevaCotizacion from './pages/NuevaCotizacion'
 import Presupuesto from './pages/Presupuesto'
@@ -32,6 +33,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/eventos" element={<Eventos />} />
+        <Route path="/eventos/:id" element={<EventoDetalle />} />
         <Route path="/cotizaciones" element={<Cotizaciones />} />
         <Route path="/cotizaciones/nueva" element={<NuevaCotizacion />} />
         <Route path="/staff" element={<ComingSoon title="Staff" />} />

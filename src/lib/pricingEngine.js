@@ -53,6 +53,21 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const bebidasEstimadas = inputs.cantidad_pax * c.consumo_por_persona
   const bebidasReales = inputs.cantidad_cafes_override || bebidasEstimadas
 
+  // ---- CANTIDADES FÍSICAS EXACTAS DE CADA INSUMO (para la ficha operativa) ----
+  const gramosCafeTotal = c.gramos_espresso * bebidasReales
+  const kilosCafeTotal = gramosCafeTotal / 1000
+  const mlLecheTotal = volumenLecheAgua * proporcion * bebidasReales
+  const litrosLecheTotal = mlLecheTotal / 1000
+  const mlAguaTotal = volumenLecheAgua * (1 - proporcion) * bebidasReales
+  const litrosAguaTotal = mlAguaTotal / 1000
+  const cantidadVasos = Math.ceil(bebidasReales)
+  const cajasVasos = cantidadVasos / 50
+  const sobresAzucarTotal = Math.ceil(c.sobres_azucar_por_bebida * bebidasReales)
+  const sobresEdulcoranteTotal = Math.ceil(bebidasReales)
+  const removedoresTotal = Math.ceil(bebidasReales)
+  const calcosTotal = inputs.calcos ? Math.ceil(bebidasReales) : 0
+  const logo3dTotal = inputs.logo_3d ? Math.ceil(bebidasReales) : 0
+
   let insumosEsenciales = bebidasReales * costoEsencialPorBebida
   const recargoPremium = inputs.nivel === 'Premium' ? insumosEsenciales * 0.25 : 0
   const costoCalcos = inputs.calcos ? bebidasReales * c.costo_calco_unidad : 0
@@ -95,6 +110,11 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   return {
     cantidadDias, totalHoras,
     costoEsencialPorBebida, bebidasEstimadas, bebidasReales,
+    // cantidades físicas exactas
+    gramosCafeTotal, kilosCafeTotal, litrosLecheTotal, litrosAguaTotal,
+    cantidadVasos, cajasVasos, sobresAzucarTotal, sobresEdulcoranteTotal,
+    removedoresTotal, calcosTotal, logo3dTotal,
+    // costos
     insumosEsenciales, recargoPremium, costoCalcos, costoLogo3d, totalInsumos,
     sueldoBaristas, viaticosBaristas, totalManoDeObra,
     amortizacionDia, amortizacionTotal, alquilerMaquinaExtra, alquilerMolinoExtra,

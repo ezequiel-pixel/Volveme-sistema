@@ -98,7 +98,11 @@ export default function Eventos() {
               </tr>
             )}
             {eventosFiltrados.map((ev) => (
-              <tr key={ev.id} className="border-b border-rule last:border-0 hover:bg-paper-warm/40">
+              <tr
+                key={ev.id}
+                onClick={() => (window.location.href = `/eventos/${ev.id}`)}
+                className="border-b border-rule last:border-0 hover:bg-paper-warm/40 cursor-pointer"
+              >
                 <td className="px-4 py-3">
                   {new Date(ev.fecha + 'T00:00:00').toLocaleDateString('es-AR', {
                     day: '2-digit',
