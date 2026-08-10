@@ -48,3 +48,35 @@ body {
 .input {
   @apply w-full border border-rule rounded px-3 py-2 bg-white text-sm outline-none focus:border-orange;
 }
+
+/* ===== Vista imprimible del Presupuesto ===== */
+.presupuesto .pres-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm 0;
+  box-sizing: border-box;
+  page-break-after: always;
+  break-after: page;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .presupuesto, .presupuesto * {
+    visibility: visible;
+  }
+  .presupuesto {
+    position: absolute;
+    inset: 0;
+    max-width: none !important;
+  }
+  .presupuesto .pres-page {
+    width: 100%;
+    min-height: 297mm;
+  }
+}

@@ -4,6 +4,8 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Eventos from './pages/Eventos'
 import Cotizaciones from './pages/Cotizaciones'
+import NuevaCotizacion from './pages/NuevaCotizacion'
+import Presupuesto from './pages/Presupuesto'
 import Layout from './components/Layout'
 import ComingSoon from './components/ComingSoon'
 
@@ -24,10 +26,14 @@ export default function App() {
 
   return (
     <Routes>
+      {/* Fuera del Layout: sin nav, para que la impresión/PDF salga limpia */}
+      <Route path="/cotizaciones/:id/presupuesto" element={<Presupuesto />} />
+
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/eventos" element={<Eventos />} />
         <Route path="/cotizaciones" element={<Cotizaciones />} />
+        <Route path="/cotizaciones/nueva" element={<NuevaCotizacion />} />
         <Route path="/staff" element={<ComingSoon title="Staff" />} />
         <Route path="/equipamiento" element={<ComingSoon title="Equipamiento" />} />
         <Route path="/stock" element={<ComingSoon title="Insumos y Stock" />} />
