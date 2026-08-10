@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BR Omny';
+  src: url('/fonts/br-omny/BROmny-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ============================================================
+   GLITZ (títulos) y KOEGAN (acento script) — FALTAN LOS ARCHIVOS.
+   tailwind.config.js ya pide 'Glitz' y 'Koegan' en font-display /
+   font-accent, pero en public/fonts/ solo existe la carpeta br-omny.
+   Por eso el logo y los títulos caen a DM Sans (fallback) y no
+   coinciden con la referencia de marca.
+
+   PARA CORREGIRLO DE RAÍZ:
+   1. Conseguir los .ttf/.woff2 de Glitz y Koegan (licencia de marca).
+   2. Crear public/fonts/glitz/ y public/fonts/koegan/ con esos archivos.
+   3. Declarar acá el @font-face de cada peso, igual que BR Omny arriba.
+   Ejemplo (ajustar nombres de archivo reales cuando los subas):
+
+   @font-face {
+     font-family: 'Glitz';
+     src: url('/fonts/glitz/Glitz-Regular.woff2') format('woff2');
+     font-weight: 400;
+     font-style: normal;
+     font-display: swap;
+   }
+   @font-face {
+     font-family: 'Koegan';
+     src: url('/fonts/koegan/Koegan-Regular.woff2') format('woff2');
+     font-weight: 400;
+     font-style: normal;
+     font-display: swap;
+   }
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Yellowtail&display=swap');
+/* Yellowtail queda como respaldo temporal de Koegan — mejor que el
+   'cursive' genérico del navegador, pero hay que reemplazarlo por
+   Koegan real apenas esté disponible (ver bloque de arriba). */
+
+body {
+  @apply bg-paper text-ink font-sans;
+}
+
+.input {
+  @apply w-full border border-rule rounded px-3 py-2 bg-white text-sm outline-none focus:border-orange;
+}
+
+/* ===== Vista imprimible del Presupuesto ===== */
+.presupuesto,
+.presupuesto * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  color-adjust: exact;
+}
+
+.presupuesto .pres-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm 0;
+  box-sizing: border-box;
+  page-break-after: always;
+  break-after: page;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .presupuesto, .presupuesto * {
+    visibility: visible;
+  }
+  .presupuesto {
+    position: absolute;
+    inset: 0;
+    max-width: none !important;
+  }
+  .presupuesto .pres-page {
+    width: 100%;
+    min-height: 297mm;
+  }
+}

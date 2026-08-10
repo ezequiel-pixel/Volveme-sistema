@@ -25,7 +25,10 @@ export default {
         rule: 'rgba(34,34,34,0.1)',
       },
       fontFamily: {
-        display: ['Glitz', 'DM Sans', 'sans-serif'],
+        // Glitz y Koegan aún no están subidos (ver comentario en index.css).
+        // Mientras tanto: DM Serif Display como respaldo de título
+        // (ya se carga en index.html) y Yellowtail como respaldo de script.
+        display: ['Glitz', '"DM Serif Display"', 'serif'],
         sans: ['"BR Omny"', 'DM Sans', 'sans-serif'],
         accent: ['Koegan', '"Yellowtail"', 'cursive'],
       },
