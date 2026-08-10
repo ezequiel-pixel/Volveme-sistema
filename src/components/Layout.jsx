@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase'
 
 const navItems = [
   { to: '/', label: 'Inicio', end: true },
+  { to: '/cotizaciones', label: 'Cotizaciones' },
   { to: '/eventos', label: 'Eventos' },
-  // Próximos módulos se agregan acá: Cotizaciones, Stock, Compras, Facturación…
+  // Próximos módulos se agregan acá: Stock, Compras, Facturación…
 ]
 
 export default function Layout() {

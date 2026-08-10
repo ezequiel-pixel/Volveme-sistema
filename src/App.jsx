@@ -3,6 +3,7 @@ import { useAuth } from './lib/useAuth'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Eventos from './pages/Eventos'
+import Cotizaciones from './pages/Cotizaciones'
 import Layout from './components/Layout'
 import ComingSoon from './components/ComingSoon'
 
@@ -26,7 +27,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/eventos" element={<Eventos />} />
-        <Route path="/cotizaciones" element={<ComingSoon title="Cotizaciones" />} />
+        <Route path="/cotizaciones" element={<Cotizaciones />} />
         <Route path="/staff" element={<ComingSoon title="Staff" />} />
         <Route path="/equipamiento" element={<ComingSoon title="Equipamiento" />} />
         <Route path="/stock" element={<ComingSoon title="Insumos y Stock" />} />

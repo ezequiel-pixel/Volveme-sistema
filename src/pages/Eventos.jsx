@@ -20,7 +20,7 @@ export default function Eventos() {
     setLoading(true)
     const { data, error } = await supabase
       .from('eventos')
-      .select('id, nombre, fecha, hora_inicio, lugar, estado, cantidad_personas, clientes(nombre)')
+      .select('id, nombre, fecha, hora_inicio, lugar, estado, cantidad_personas, cotizacion_id, clientes(nombre)')
       .order('fecha', { ascending: true })
 
     if (!error) setEventos(data)
@@ -43,11 +43,16 @@ export default function Eventos() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors"
+          className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
         >
-          <Plus size={15} /> Nuevo evento
+          <Plus size={15} /> Excepción manual
         </button>
       </div>
+
+      <p className="text-sm text-ink-light mb-5">
+        Los eventos se crean solos cuando confirmás una cotización en <strong className="text-ink-mid">Cotizaciones</strong>.
+        Usá "Excepción manual" solo si necesitás cargar algo sin pasar antes por una cotización.
+      </p>
 
       <div className="flex gap-2 mb-5">
         {['todos', 'lead', 'cotizado', 'confirmado', 'realizado', 'cancelado'].map((f) => (
@@ -102,7 +107,14 @@ export default function Eventos() {
                   })}
                   {ev.hora_inicio && <span className="text-ink-light ml-1.5">{ev.hora_inicio.slice(0, 5)}</span>}
                 </td>
-                <td className="px-4 py-3 font-medium text-ink">{ev.nombre}</td>
+                <td className="px-4 py-3 font-medium text-ink">
+                  {ev.nombre}
+                  {!ev.cotizacion_id && (
+                    <span className="ml-2 text-[10px] uppercase tracking-wide text-ink-light border border-rule rounded-full px-1.5 py-0.5">
+                      Manual
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-ink-mid">{ev.clientes?.nombre || '—'}</td>
                 <td className="px-4 py-3 text-ink-mid">{ev.lugar || '—'}</td>
                 <td className="px-4 py-3 text-ink-mid">{ev.cantidad_personas || '—'}</td>

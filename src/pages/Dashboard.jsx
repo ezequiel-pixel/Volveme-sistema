@@ -12,20 +12,20 @@ import {
 
 const modules = [
   {
-    to: '/eventos',
-    icon: CalendarDays,
-    title: 'Eventos',
-    description: 'Agenda, estado de cada evento y disponibilidad de fechas.',
-    status: 'disponible',
-    color: 'accent',
-  },
-  {
     to: '/cotizaciones',
     icon: FileText,
     title: 'Cotizaciones',
-    description: 'Armá el presupuesto de un evento y generá el PDF.',
-    status: 'proximamente',
+    description: 'Cargá las variables del evento, calculá el precio en vivo y confirmá.',
+    status: 'disponible',
     color: 'coral',
+  },
+  {
+    to: '/eventos',
+    icon: CalendarDays,
+    title: 'Eventos',
+    description: 'Se crean solos cuando una cotización se confirma. Agenda y estado.',
+    status: 'disponible',
+    color: 'accent',
   },
   {
     to: '/staff',
