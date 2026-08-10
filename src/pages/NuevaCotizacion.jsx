@@ -151,7 +151,7 @@ export default function NuevaCotizacion() {
       } else {
         const { data: nuevo, error: errCliente } = await supabase
           .from('clientes').insert({ nombre: inputs.nombre_cliente.trim() }).select('id').single()
-        if (errCliente) { setError('No se pudo crear el cliente.'); setSaving(false); return }
+        if (errCliente) { setError(`No se pudo crear el cliente: ${errCliente.message}`); console.error(errCliente); setSaving(false); return }
         clienteId = nuevo.id
       }
     }
@@ -191,7 +191,7 @@ export default function NuevaCotizacion() {
       margen_pct: resultado.margenPct,
     }).select('id').single()
 
-    if (errCot) { setSaving(false); setError('No se pudo guardar la cotización.'); return }
+    if (errCot) { setSaving(false); setError(`No se pudo guardar la cotización: ${errCot.message}`); console.error(errCot); return }
 
     const { error: errDias } = await supabase.from('cotizacion_dias').insert(
       diasOrdenados.map((d, i) => ({
@@ -204,7 +204,7 @@ export default function NuevaCotizacion() {
     )
 
     setSaving(false)
-    if (errDias) { setError('La cotización se guardó, pero hubo un error guardando los días.'); return }
+    if (errDias) { setError(`La cotización se guardó, pero hubo un error guardando los días: ${errDias.message}`); console.error(errDias); return }
     navigate('/cotizaciones')
   }
 
