@@ -5,6 +5,7 @@ import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
 import {
   Printer, ArrowLeft, MessageCircle, Loader2,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
+  CalendarDays, MapPin, Clock, Users, Timer,
 } from 'lucide-react'
 
 const money = (n) =>
@@ -165,17 +166,17 @@ export default function Presupuesto() {
             <img src="/images/portada.jpg" alt="" className="w-full h-full object-cover block" />
           </div>
 
-          <div className="bg-peach text-center py-8 px-10 mt-6 flex-1 flex flex-col justify-center">
-            <p className="text-xs tracking-[0.2em] uppercase text-ink-mid mb-3">Presupuesto para</p>
-            <p className="font-display text-4xl text-wine mb-2 leading-tight">{cotizacion.clientes?.nombre || '—'}</p>
-            <p className="text-sm font-semibold text-ink-mid uppercase tracking-wide mb-4">
+          <div className="bg-peach text-center py-10 px-10 mt-6 flex-1 flex flex-col justify-center">
+            <p className="text-sm tracking-[0.25em] uppercase text-ink-mid mb-4">Presupuesto para</p>
+            <p className="font-display text-6xl text-wine mb-3 leading-tight">{cotizacion.clientes?.nombre || '—'}</p>
+            <p className="text-base font-bold text-ink-mid uppercase tracking-wide mb-5">
               {cotizacion.nombre_evento || 'Evento privado'}
             </p>
-            <p className="text-sm font-semibold text-ink">
+            <p className="text-lg font-bold text-ink">
               FECHA: {formatFecha(primerDia?.fecha)}
               {esMultiDia && ` al ${formatFecha(ultimoDia?.fecha)}`}
             </p>
-            <p className="text-xs text-ink-light underline mt-3">*Este presupuesto tiene validez por 15 días</p>
+            <p className="text-xs text-ink-light underline mt-4">*Este presupuesto tiene validez por 15 días</p>
           </div>
 
           <Footer />
@@ -184,38 +185,46 @@ export default function Presupuesto() {
         {/* ============ PÁGINA 2 — SOBRE EL EVENTO ============ */}
         <section className="pres-page flex flex-col bg-peach">
           <div className="text-center pt-16 px-14 mb-8">
-            <h2 className="font-display text-3xl text-wine mb-3">Sobre el evento</h2>
-            <p className="text-sm text-ink-mid">
+            <h2 className="font-display text-5xl text-wine mb-4">Sobre el evento</h2>
+            <p className="text-base text-ink-mid">
               Todo la información que necesitamos para que tu evento sea <strong className="text-ink">único</strong>
             </p>
           </div>
 
           <DashedRule />
 
-          <div className="py-10 space-y-6">
+          <div className="py-10 space-y-7 max-w-[440px] mx-auto w-full">
             {dias.map((dia, i) => (
               <DatoEvento
                 key={`fecha-${i}`}
+                icon={CalendarDays}
+                color="#3f6bff"
                 label={esMultiDia ? `Fecha (día ${i + 1})` : 'Fecha'}
                 valor={formatFecha(dia.fecha)}
               />
             ))}
-            <DatoEvento label="Ubicación" valor={cotizacion.lugar || '—'} />
+            <DatoEvento icon={MapPin} color="#fd926f" label="Ubicación" valor={cotizacion.lugar || '—'} />
             {dias.map((dia, i) => (
               <DatoEvento
                 key={`horario-${i}`}
+                icon={Clock}
+                color="#b7ddff"
                 label={esMultiDia ? `Horario (día ${i + 1})` : 'Horario'}
                 valor={`${dia.hora_inicio?.slice(0, 5)} a ${dia.hora_fin?.slice(0, 5)}hs`}
               />
             ))}
-            <DatoEvento label="Cant. invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
+            <DatoEvento icon={Users} color="#8c5a45" label="Cant. invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
             <DatoEvento
+              icon={Coffee}
+              color="#ff6a1a"
               label="Servicio"
               valor={`${cotizacion.cantidad_cafes_override || cotizacion.cantidad_pax || '—'} cafés`}
             />
             {dias.map((dia, i) => (
               <DatoEvento
                 key={`duracion-${i}`}
+                icon={Timer}
+                color="#a47864"
                 label={esMultiDia ? `Duración del servicio (día ${i + 1})` : 'Duración del servicio'}
                 valor={calcularDuracion(dia.hora_inicio?.slice(0, 5), dia.hora_fin?.slice(0, 5))}
               />
@@ -431,6 +440,7 @@ function IconoConCirculo({ icon: Icon, color }) {
 }
 
 function MenuSeccion({ titulo, items, color }) {
+  const cols = items.length === 2 ? 'grid-cols-2 max-w-[420px] mx-auto' : 'grid-cols-3'
   return (
     <div>
       <div className="flex items-center justify-center mb-8">
@@ -441,7 +451,7 @@ function MenuSeccion({ titulo, items, color }) {
           {titulo}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-8">
+      <div className={`grid ${cols} gap-8`}>
         {items.map((it) => (
           <div key={it.nombre} className="text-center">
             <IconoConCirculo icon={it.icon || Coffee} color={color || '#3f6bff'} />
@@ -454,11 +464,22 @@ function MenuSeccion({ titulo, items, color }) {
   )
 }
 
-function DatoEvento({ label, valor }) {
+function DatoEvento({ label, valor, icon: Icon, color }) {
   return (
-    <div className="text-center">
-      <span className="text-xs uppercase tracking-wide text-ink-mid">{label}: </span>
-      <span className="text-sm font-semibold text-ink">{valor}</span>
+    <div className="flex items-center gap-4">
+      {Icon && (
+        <span className="relative flex-shrink-0 w-11 h-11 flex items-center justify-center">
+          <span
+            className="absolute w-7 h-7 rounded-full"
+            style={{ backgroundColor: color || '#3f6bff', opacity: 0.55, top: -2, right: -2 }}
+          />
+          <Icon size={22} strokeWidth={1.6} className="relative text-ink" />
+        </span>
+      )}
+      <div className="text-left">
+        <span className="block text-xs uppercase tracking-wide text-ink-mid">{label}</span>
+        <span className="block text-lg font-bold text-ink">{valor}</span>
+      </div>
     </div>
   )
 }
