@@ -235,34 +235,41 @@ export default function Presupuesto() {
         </section>
 
         {/* ============ PÁGINA 3 — CAFÉ ESPECIAL ============ */}
-        <section className="pres-page flex flex-col justify-center px-14 bg-paper">
-          <h2 className="font-display text-3xl text-center text-wine mb-4">Café especial</h2>
-          <p className="text-center text-sm text-ink-mid px-6 mb-1">
-            En <strong className="text-ink">Volveme</strong> seleccionamos el café para cada evento, buscando el perfil
-            que mejor se adapta a <strong className="text-ink">la experiencia</strong> que querés crear.
-          </p>
-          <p className="text-center text-sm text-ink-mid px-6 mb-12">
-            Trabajamos con granos seleccionados de origen, tostados cuidadosamente para destacar sus notas y
-            ofrecer <strong className="text-ink">una bebida equilibrada y memorable</strong>.
-          </p>
-
-          <div className="grid grid-cols-2 gap-x-10 gap-y-12 mb-16">
-            <FeatureIcono icon={Coffee} titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
-            <FeatureIcono icon={Heart} titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
-            <FeatureIcono icon={Snowflake} titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
-            <FeatureIcono icon={Leaf} titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
+        <section className="pres-page flex flex-col bg-paper relative overflow-hidden">
+          {/* detalle sutil de fondo — granos de café dispersos, muy baja opacidad */}
+          <div className="absolute inset-0 pointer-events-none opacity-[0.035] flex items-end justify-center pb-10">
+            <Coffee size={280} strokeWidth={0.6} className="text-wine" />
           </div>
 
-          <p className="text-center font-display text-2xl text-wine mt-auto">volveme<sup className="text-sm">®</sup></p>
+          <div className="flex-1 flex flex-col justify-center px-14">
+            <h2 className="font-display text-5xl text-center text-wine mb-6">Café especial</h2>
+            <p className="text-center text-base text-ink-mid px-6 mb-2 leading-relaxed">
+              En <strong className="text-ink">Volveme</strong> seleccionamos el café para cada evento, buscando el perfil
+              que mejor se adapta a <strong className="text-ink">la experiencia</strong> que querés crear.
+            </p>
+            <p className="text-center text-base text-ink-mid px-6 mb-16 leading-relaxed">
+              Trabajamos con granos seleccionados de origen, tostados cuidadosamente para destacar sus notas y
+              ofrecer <strong className="text-ink">una bebida equilibrada y memorable</strong>.
+            </p>
+
+            <div className="grid grid-cols-2 gap-x-14 gap-y-16">
+              <FeatureIcono icon={Coffee} color="#3f6bff" titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
+              <FeatureIcono icon={Heart} color="#fd926f" titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
+              <FeatureIcono icon={Snowflake} color="#b7ddff" titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
+              <FeatureIcono icon={Leaf} color="#8c5a45" titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
+            </div>
+          </div>
+
+          <p className="relative text-center font-display text-3xl text-wine pb-8">volveme<sup className="text-base">®</sup></p>
         </section>
 
         {/* ============ PÁGINA 4 — NUESTRAS PREPARACIONES ============ */}
         <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
           <Watermark texto="volveme" />
           <div className="flex-1 flex flex-col justify-center px-14">
-            <h2 className="relative font-display text-4xl text-center text-wine mb-12">Nuestras preparaciones</h2>
+            <h2 className="relative font-display text-5xl text-center text-wine mb-14">Nuestras preparaciones</h2>
 
-            <div className="relative space-y-10">
+            <div className="relative space-y-12">
               <MenuSeccion titulo="Sin leche" color="#3f6bff" items={[
                 { nombre: 'Espresso', desc: 'Corto e intenso', icon: Coffee },
                 { nombre: 'Americano', desc: 'Doble espresso con agua — más liviano', icon: Droplet },
@@ -395,24 +402,30 @@ function DashedRule() {
   return <div className="mx-10 border-t-2 border-dashed border-orange/40" />
 }
 
-function FeatureIcono({ icon: Icon, titulo, texto }) {
+function FeatureIcono({ icon: Icon, titulo, texto, color }) {
   return (
     <div className="text-center">
-      <Icon size={28} strokeWidth={1.5} className="text-orange mx-auto mb-3" />
-      <p className="font-semibold text-sm text-ink mb-1">{titulo}</p>
-      <p className="text-xs text-ink-mid leading-snug">{texto}</p>
+      <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+        <span
+          className="absolute w-10 h-10 rounded-full"
+          style={{ backgroundColor: color || '#ff6a1a', opacity: 0.5, top: -3, right: -3 }}
+        />
+        <Icon size={34} strokeWidth={1.4} className="relative text-ink" />
+      </div>
+      <p className="font-bold text-lg text-ink mb-1.5">{titulo}</p>
+      <p className="text-sm text-ink-mid leading-snug px-2">{texto}</p>
     </div>
   )
 }
 
 function IconoConCirculo({ icon: Icon, color }) {
   return (
-    <div className="relative w-12 h-12 mx-auto mb-2.5 flex items-center justify-center">
+    <div className="relative w-16 h-16 mx-auto mb-3 flex items-center justify-center">
       <span
-        className="absolute w-7 h-7 rounded-full"
-        style={{ backgroundColor: color, opacity: 0.55, top: -2, right: -2 }}
+        className="absolute w-9 h-9 rounded-full"
+        style={{ backgroundColor: color, opacity: 0.55, top: -3, right: -3 }}
       />
-      <Icon size={24} strokeWidth={1.6} className="relative text-ink" />
+      <Icon size={32} strokeWidth={1.5} className="relative text-ink" />
     </div>
   )
 }
@@ -420,17 +433,20 @@ function IconoConCirculo({ icon: Icon, color }) {
 function MenuSeccion({ titulo, items, color }) {
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <span className="flex-1 border-t border-dashed border-orange/40" />
-        <p className="text-sm uppercase tracking-[0.25em] text-ink font-bold">{titulo}</p>
-        <span className="flex-1 border-t border-dashed border-orange/40" />
+      <div className="flex items-center justify-center mb-8">
+        <span
+          className="text-sm uppercase tracking-[0.3em] font-bold text-wine px-5 py-2 rounded-full"
+          style={{ backgroundColor: `${color}22` }}
+        >
+          {titulo}
+        </span>
       </div>
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-3 gap-8">
         {items.map((it) => (
           <div key={it.nombre} className="text-center">
             <IconoConCirculo icon={it.icon || Coffee} color={color || '#3f6bff'} />
-            <p className="text-base font-bold text-ink">{it.nombre}</p>
-            <p className="text-xs text-ink-mid leading-snug mt-1">{it.desc}</p>
+            <p className="text-lg font-bold text-ink">{it.nombre}</p>
+            <p className="text-sm text-ink-mid leading-snug mt-1">{it.desc}</p>
           </div>
         ))}
       </div>
