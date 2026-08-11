@@ -90,6 +90,8 @@ body {
 .presupuesto .pres-page {
   width: 210mm;
   min-height: 297mm;
+  margin: 0 auto; /* evita que la página quede pegada a la izquierda
+                     dentro del contenedor max-w-[820px] */
   padding: 12mm 0;
   box-sizing: border-box;
   page-break-after: always;

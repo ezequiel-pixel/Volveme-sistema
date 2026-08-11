@@ -161,7 +161,9 @@ export default function Presupuesto() {
             Ya sea una boda, una fiesta o una reunión empresarial, Volveme lleva la barra a tu evento.
           </p>
 
-          <img src="/images/portada.jpg" alt="" className="mx-10 rounded-sm object-cover" style={{ height: '300px' }} />
+          <div className="mx-10 rounded-sm overflow-hidden" style={{ height: '320px' }}>
+            <img src="/images/portada.jpg" alt="" className="w-full h-full object-cover block" />
+          </div>
 
           <div className="bg-peach text-center py-8 px-10 mt-6 flex-1 flex flex-col justify-center">
             <p className="text-xs tracking-[0.2em] uppercase text-ink-mid mb-3">Presupuesto para</p>
@@ -192,23 +194,32 @@ export default function Presupuesto() {
 
           <div className="py-10 space-y-6">
             {dias.map((dia, i) => (
-              <div key={i} className="space-y-1">
-                <DatoEvento
-                  label={esMultiDia ? `Fecha (día ${i + 1})` : 'Fecha'}
-                  valor={formatFecha(dia.fecha)}
-                />
-                <DatoEvento
-                  label="Horario"
-                  valor={`${dia.hora_inicio?.slice(0, 5)} a ${dia.hora_fin?.slice(0, 5)}hs`}
-                />
-                <DatoEvento
-                  label={esMultiDia ? `Duración del servicio (día ${i + 1})` : 'Duración del servicio'}
-                  valor={calcularDuracion(dia.hora_inicio?.slice(0, 5), dia.hora_fin?.slice(0, 5))}
-                />
-              </div>
+              <DatoEvento
+                key={`fecha-${i}`}
+                label={esMultiDia ? `Fecha (día ${i + 1})` : 'Fecha'}
+                valor={formatFecha(dia.fecha)}
+              />
             ))}
             <DatoEvento label="Ubicación" valor={cotizacion.lugar || '—'} />
+            {dias.map((dia, i) => (
+              <DatoEvento
+                key={`horario-${i}`}
+                label={esMultiDia ? `Horario (día ${i + 1})` : 'Horario'}
+                valor={`${dia.hora_inicio?.slice(0, 5)} a ${dia.hora_fin?.slice(0, 5)}hs`}
+              />
+            ))}
             <DatoEvento label="Cant. invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
+            <DatoEvento
+              label="Servicio"
+              valor={`${cotizacion.cantidad_cafes_override || cotizacion.cantidad_pax || '—'} cafés`}
+            />
+            {dias.map((dia, i) => (
+              <DatoEvento
+                key={`duracion-${i}`}
+                label={esMultiDia ? `Duración del servicio (día ${i + 1})` : 'Duración del servicio'}
+                valor={calcularDuracion(dia.hora_inicio?.slice(0, 5), dia.hora_fin?.slice(0, 5))}
+              />
+            ))}
           </div>
 
           <DashedRule />
@@ -283,7 +294,7 @@ export default function Presupuesto() {
             <Incluye texto={`${cotizacion.cantidad_baristas || 1} Barista${cotizacion.cantidad_baristas > 1 ? 's' : ''}`} />
             <Incluye texto="Bebidas calientes (espresso, americano, latte, flat white y capuccino)" />
             <Incluye texto="Leche entera, de avena y almendras" />
-            {cotizacion.logo_3d && <Incluye texto="Logo impreso en el arte latte" />}
+            {cotizacion.logo_3d && <Incluye texto="Logo impreso en el arte latte (algunos cafés)." />}
             {cotizacion.calcos && <Incluye texto={`Calcos en los vasos de ${cotizacion.tamano_vaso}`} />}
             <Incluye texto="Azúcar, edulcorante, servilletas y removedores" />
             <Incluye texto="Vasos de polipapel" />
