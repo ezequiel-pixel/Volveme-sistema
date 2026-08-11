@@ -205,30 +205,42 @@ export default function Presupuesto() {
             ))}
             <DatoEvento icon={MapPin} color="#fd926f" label="Ubicación" valor={cotizacion.lugar || '—'} />
             {dias.map((dia, i) => (
-              <DatoEvento
-                key={`horario-${i}`}
-                icon={Clock}
-                color="#b7ddff"
-                label={esMultiDia ? `Horario (día ${i + 1})` : 'Horario'}
-                valor={`${dia.hora_inicio?.slice(0, 5)} a ${dia.hora_fin?.slice(0, 5)}hs`}
-              />
+              dia.hora_inicio && dia.hora_fin ? (
+                <DatoEvento
+                  key={`horario-${i}`}
+                  icon={Clock}
+                  color="#b7ddff"
+                  label={esMultiDia ? `Horario (día ${i + 1})` : 'Horario'}
+                  valor={`${dia.hora_inicio.slice(0, 5)} a ${dia.hora_fin.slice(0, 5)}hs`}
+                />
+              ) : null
             ))}
             <DatoEvento icon={Users} color="#8c5a45" label="Cant. invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
-            <DatoEvento
-              icon={Coffee}
-              color="#ff6a1a"
-              label="Servicio"
-              valor={`${cotizacion.cantidad_cafes_override || cotizacion.cantidad_pax || '—'} cafés`}
-            />
-            {dias.map((dia, i) => (
+            {cotizacion.cantidad_cafes_override ? (
               <DatoEvento
-                key={`duracion-${i}`}
-                icon={Timer}
-                color="#a47864"
-                label={esMultiDia ? `Duración del servicio (día ${i + 1})` : 'Duración del servicio'}
-                valor={calcularDuracion(dia.hora_inicio?.slice(0, 5), dia.hora_fin?.slice(0, 5))}
+                icon={Coffee}
+                color="#ff6a1a"
+                label="Servicio"
+                valor={`${cotizacion.cantidad_cafes_override} cafés`}
               />
-            ))}
+            ) : null}
+            {dias.map((dia, i) => {
+              const tieneHorario = dia.hora_inicio && dia.hora_fin
+              const tieneDuracionManual = dia.duracion_horas !== null && dia.duracion_horas !== undefined
+              if (!tieneHorario && !tieneDuracionManual) return null
+              const valor = tieneHorario
+                ? calcularDuracion(dia.hora_inicio.slice(0, 5), dia.hora_fin.slice(0, 5))
+                : `${dia.duracion_horas}hs`
+              return (
+                <DatoEvento
+                  key={`duracion-${i}`}
+                  icon={Timer}
+                  color="#a47864"
+                  label={esMultiDia ? `Duración del servicio (día ${i + 1})` : 'Duración del servicio'}
+                  valor={valor}
+                />
+              )
+            })}
           </div>
 
           <DashedRule />

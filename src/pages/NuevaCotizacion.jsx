@@ -16,7 +16,7 @@ const defaultInputs = {
   clausula_rc_monto: 0, multiplicador: '', iva_pct: '',
 }
 
-const defaultDia = () => ({ fecha: '', horaInicio: '08:00', horaFin: '18:00' })
+const defaultDia = () => ({ modo: 'horario', fecha: '', horaInicio: '08:00', horaFin: '18:00', duracionHoras: '' })
 
 export default function NuevaCotizacion() {
   const navigate = useNavigate()
@@ -81,7 +81,13 @@ export default function NuevaCotizacion() {
         })
       }
       if (diasCot && diasCot.length) {
-        setDias(diasCot.map((d) => ({ fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5) })))
+        setDias(diasCot.map((d) => ({
+          modo: d.duracion_horas != null ? 'horas' : 'horario',
+          fecha: d.fecha,
+          horaInicio: d.hora_inicio?.slice(0, 5) || '08:00',
+          horaFin: d.hora_fin?.slice(0, 5) || '18:00',
+          duracionHoras: d.duracion_horas != null ? String(d.duracion_horas) : '',
+        })))
       }
     }
     precargar()
@@ -104,7 +110,13 @@ export default function NuevaCotizacion() {
         d.setDate(d.getDate() + 1)
         fechaSugerida = d.toISOString().slice(0, 10)
       }
-      return [...prev, { fecha: fechaSugerida, horaInicio: ultimo?.horaInicio || '08:00', horaFin: ultimo?.horaFin || '18:00' }]
+      return [...prev, {
+        modo: ultimo?.modo || 'horario',
+        fecha: fechaSugerida,
+        horaInicio: ultimo?.horaInicio || '08:00',
+        horaFin: ultimo?.horaFin || '18:00',
+        duracionHoras: ultimo?.duracionHoras || '',
+      }]
     })
   }
 
@@ -141,6 +153,11 @@ export default function NuevaCotizacion() {
       setSaving(false)
       return
     }
+    if (dias.some((d) => (d.modo || 'horario') === 'horas' && !d.duracionHoras)) {
+      setError('Completá la cantidad de horas para cada día que no tenga horario específico.')
+      setSaving(false)
+      return
+    }
 
     let clienteId = null
     if (inputs.nombre_cliente.trim()) {
@@ -163,7 +180,7 @@ export default function NuevaCotizacion() {
       cliente_id: clienteId,
       nombre_evento: inputs.nombre_evento || `Evento — ${inputs.nombre_cliente}`,
       fecha_evento: primerDia.fecha,
-      hora_inicio: primerDia.horaInicio,
+      hora_inicio: primerDia.horaInicio || null,
       lugar: inputs.lugar || null,
       cantidad_pax: Number(inputs.cantidad_pax) || null,
       nivel: inputs.nivel.toLowerCase(),
@@ -197,8 +214,9 @@ export default function NuevaCotizacion() {
       diasOrdenados.map((d, i) => ({
         cotizacion_id: nuevaCot.id,
         fecha: d.fecha,
-        hora_inicio: d.horaInicio,
-        hora_fin: d.horaFin,
+        hora_inicio: (d.modo || 'horario') === 'horas' ? null : d.horaInicio,
+        hora_fin: (d.modo || 'horario') === 'horas' ? null : d.horaFin,
+        duracion_horas: (d.modo || 'horario') === 'horas' ? Number(d.duracionHoras) || null : null,
         orden: i,
       }))
     )
@@ -253,20 +271,47 @@ export default function NuevaCotizacion() {
             <SectionCard icon={CalendarDays} title={`Días del evento`} badge={dias.length} color="orange">
               <div className="space-y-2">
                 {dias.map((dia, i) => (
-                  <div key={i} className="flex items-end gap-2 bg-paper-card border border-rule rounded p-3">
-                    <Field label={`Día ${i + 1}`}>
-                      <input type="date" required value={dia.fecha} onChange={(e) => updateDia(i, 'fecha', e.target.value)} className="input" />
-                    </Field>
-                    <Field label="Desde">
-                      <input type="time" required value={dia.horaInicio} onChange={(e) => updateDia(i, 'horaInicio', e.target.value)} className="input" />
-                    </Field>
-                    <Field label="Hasta">
-                      <input type="time" required value={dia.horaFin} onChange={(e) => updateDia(i, 'horaFin', e.target.value)} className="input" />
-                    </Field>
-                    {dias.length > 1 && (
-                      <button type="button" onClick={() => quitarDia(i)} className="text-ink-light hover:text-coral pb-2.5">
-                        <X size={16} />
-                      </button>
+                  <div key={i} className="bg-paper-card border border-rule rounded p-3 space-y-2">
+                    <div className="flex items-end gap-2">
+                      <Field label={`Día ${i + 1}`}>
+                        <input type="date" required value={dia.fecha} onChange={(e) => updateDia(i, 'fecha', e.target.value)} className="input" />
+                      </Field>
+                      <Field label="Modo">
+                        <select
+                          value={dia.modo || 'horario'}
+                          onChange={(e) => updateDia(i, 'modo', e.target.value)}
+                          className="input"
+                        >
+                          <option value="horario">Horario específico</option>
+                          <option value="horas">Solo cantidad de horas</option>
+                        </select>
+                      </Field>
+                      {dias.length > 1 && (
+                        <button type="button" onClick={() => quitarDia(i)} className="text-ink-light hover:text-coral pb-2.5">
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+
+                    {(dia.modo || 'horario') === 'horario' ? (
+                      <div className="flex items-end gap-2">
+                        <Field label="Desde">
+                          <input type="time" required value={dia.horaInicio} onChange={(e) => updateDia(i, 'horaInicio', e.target.value)} className="input" />
+                        </Field>
+                        <Field label="Hasta">
+                          <input type="time" required value={dia.horaFin} onChange={(e) => updateDia(i, 'horaFin', e.target.value)} className="input" />
+                        </Field>
+                      </div>
+                    ) : (
+                      <Field label="Cantidad de horas">
+                        <input
+                          type="number" min="0" step="0.5" required
+                          value={dia.duracionHoras}
+                          onChange={(e) => updateDia(i, 'duracionHoras', e.target.value)}
+                          className="input"
+                          placeholder="Ej: 3"
+                        />
+                      </Field>
                     )}
                   </div>
                 ))}
