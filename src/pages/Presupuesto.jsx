@@ -276,9 +276,9 @@ export default function Presupuesto() {
         <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
           <Watermark texto="volveme" />
           <div className="flex-1 flex flex-col justify-center px-14">
-            <h2 className="relative font-display text-5xl text-center text-wine mb-14">Nuestras preparaciones</h2>
+            <h2 className="relative font-display text-4xl text-center text-wine mb-8">Nuestras preparaciones</h2>
 
-            <div className="relative space-y-12">
+            <div className="relative space-y-6">
               <MenuSeccion titulo="Sin leche" color="#3f6bff" items={[
                 { nombre: 'Espresso', desc: 'Corto e intenso', icon: Coffee },
                 { nombre: 'Americano', desc: 'Doble espresso con agua — más liviano', icon: Droplet },
@@ -314,9 +314,9 @@ export default function Presupuesto() {
 
           <div className="flex-1 flex flex-col justify-center px-16">
             <div className="max-w-[560px] mx-auto w-full">
-              <h2 className="relative font-display text-4xl text-center text-wine mb-10">¿Qué incluye nuestro servicio?</h2>
+              <h2 className="relative font-display text-3xl text-center text-wine mb-6">¿Qué incluye nuestro servicio?</h2>
 
-              <ul className="relative space-y-4 mb-10">
+              <ul className="relative space-y-2.5 mb-6">
                 <Incluye texto={`${cotizacion.cantidad_baristas || 1} Barista${cotizacion.cantidad_baristas > 1 ? 's' : ''}`} />
                 <Incluye texto="Bebidas calientes (espresso, americano, latte, flat white y capuccino)" />
                 <Incluye texto="Leche entera, de avena y almendras" />
@@ -327,26 +327,26 @@ export default function Presupuesto() {
                 <Incluye texto="Transporte, montaje y desmontaje" />
               </ul>
 
-              <div className="bg-peach rounded-md flex divide-x divide-orange/25 mb-6 py-2">
-                <div className="flex-1 text-center py-7">
+              <div className="bg-peach rounded-md flex divide-x divide-orange/25 mb-4 py-1">
+                <div className="flex-1 text-center py-4">
                   <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Invitados</p>
-                  <p className="font-display text-5xl text-wine">{cotizacion.cantidad_pax || '—'}</p>
+                  <p className="font-display text-4xl text-wine">{cotizacion.cantidad_pax || '—'}</p>
                   <p className="text-xs text-ink-light mt-1">Personas</p>
                 </div>
-                <div className="flex-1 text-center py-7">
+                <div className="flex-1 text-center py-4">
                   <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Precio</p>
-                  <p className="font-display text-4xl text-wine">{money(cotizacion.precio_final)}</p>
+                  <p className="font-display text-3xl text-wine">{money(cotizacion.precio_final)}</p>
                   <p className="text-xs text-ink-light mt-1">Precio final, IVA incluido</p>
                 </div>
               </div>
 
-              <p className="text-center text-xs text-ink-light underline mb-10">*Este presupuesto tiene validez por 15 días</p>
+              <p className="text-center text-xs text-ink-light underline mb-6">*Este presupuesto tiene validez por 15 días</p>
 
               <DashedRule />
 
-              <div className="pt-10">
-                <h3 className="font-display text-3xl text-center text-wine mb-7">Condiciones</h3>
-                <div className="space-y-5">
+              <div className="pt-6">
+                <h3 className="font-display text-2xl text-center text-wine mb-4">Condiciones</h3>
+                <div className="space-y-2.5">
                   <Condicion texto={<><strong className="text-ink">Reserva anticipada</strong> con el 50% y saldo restante 24hs antes del evento.</>} />
                   <Condicion texto={<>Punto eléctrico para el equipamiento de <strong className="text-ink">10A.</strong></>} />
                   <Condicion texto="Informar si el acceso al lugar del evento presenta obstáculos o desniveles para la instalación del equipamiento." />
@@ -362,17 +362,25 @@ export default function Presupuesto() {
         <section className="pres-page flex flex-col bg-paper">
           <div className="flex-1 flex flex-col justify-center px-10">
             <h2 className="font-display text-4xl text-center text-wine mb-10">Así vivimos nuestros eventos</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Para sumar una foto de YPF (o cualquier evento) más vistosa:
-                  1. Subí el archivo a public/images/, por ejemplo galeria-ypf.jpg
-                  2. Agregala a este array: 'galeria-1', 'galeria-2', ..., 'galeria-ypf' */}
-              {['galeria-1', 'galeria-2', 'galeria-3', 'galeria-4', 'galeria-5', 'galeria-6'].map((img) => (
+            {/* Grid 2 / 3 / 2 — mismo layout asimétrico de la referencia original.
+                Base de 6 columnas: fila 1 y 3 usan col-span-3 (2 fotos por fila),
+                fila 2 usa col-span-2 (3 fotos por fila). */}
+            <div className="grid grid-cols-6 gap-3">
+              {[
+                { img: 'galeria-1', span: 3 },
+                { img: 'galeria-7', span: 3 }, // foto nueva agregada
+                { img: 'galeria-4', span: 2 },
+                { img: 'galeria-2', span: 2 },
+                { img: 'galeria-3', span: 2 },
+                { img: 'galeria-6', span: 3 },
+                { img: 'galeria-5', span: 3 },
+              ].map(({ img, span }) => (
                 <img
                   key={img}
                   src={`/images/${img}.jpg`}
                   alt=""
                   className="w-full object-cover rounded-sm"
-                  style={{ height: '190px' }}
+                  style={{ height: '175px', gridColumn: `span ${span} / span ${span}` }}
                 />
               ))}
             </div>
@@ -381,15 +389,18 @@ export default function Presupuesto() {
         </section>
 
         {/* ============ PÁGINA 7 — CIERRE ============ */}
-        <section className="pres-page flex flex-col bg-peach">
-          <p className="text-center text-xs text-ink-light underline pt-8 pb-4">*Este presupuesto tiene validez por 15 días</p>
-          <div className="flex-1 flex items-center px-16">
-            <p className="font-display text-4xl text-wine leading-tight">
-              volveme<sup className="text-xl">®</sup> la barra de café<br />para tu próximo{' '}
-              <em className="font-accent text-orange not-italic">evento</em>.
-            </p>
+        <section className="pres-page flex flex-col items-center justify-center bg-paper text-center px-16">
+          <p className="font-display text-4xl md:text-5xl text-wine leading-tight mb-12">
+            volveme<sup className="text-2xl align-super">®</sup> la barra de café<br />para tu próximo{' '}
+            <em className="font-accent text-orange not-italic">evento</em>.
+          </p>
+          <p className="text-sm text-ink-light underline mb-14">*Este presupuesto tiene validez por 15 días</p>
+          <div className="flex items-center justify-center gap-8 text-sm text-ink-mid flex-wrap">
+            <span className="flex items-center gap-2">🌐 www.volveme.com</span>
+            <span className="flex items-center gap-2">📷 volveme.cafe</span>
+            <span className="flex items-center gap-2">✉️ info@volveme.com</span>
+            <span className="flex items-center gap-2">📞 +54 9 11 5841-6365</span>
           </div>
-          <Footer />
         </section>
       </div>
     </div>
@@ -429,34 +440,34 @@ function FeatureIcono({ icon: Icon, titulo, texto, color }) {
 
 function IconoConCirculo({ icon: Icon, color }) {
   return (
-    <div className="relative w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+    <div className="relative w-12 h-12 mx-auto mb-2 flex items-center justify-center">
       <span
-        className="absolute w-9 h-9 rounded-full"
-        style={{ backgroundColor: color, opacity: 0.55, top: -3, right: -3 }}
+        className="absolute w-7 h-7 rounded-full"
+        style={{ backgroundColor: color, opacity: 0.55, top: -2, right: -2 }}
       />
-      <Icon size={32} strokeWidth={1.5} className="relative text-ink" />
+      <Icon size={24} strokeWidth={1.5} className="relative text-ink" />
     </div>
   )
 }
 
 function MenuSeccion({ titulo, items, color }) {
-  const cols = items.length === 2 ? 'grid-cols-2 max-w-[420px] mx-auto' : 'grid-cols-3'
+  const cols = items.length === 2 ? 'grid-cols-2 max-w-[380px] mx-auto' : 'grid-cols-3'
   return (
     <div>
-      <div className="flex items-center justify-center mb-8">
+      <div className="flex items-center justify-center mb-4">
         <span
-          className="text-sm uppercase tracking-[0.3em] font-bold text-wine px-5 py-2 rounded-full"
+          className="text-xs uppercase tracking-[0.25em] font-bold text-wine px-4 py-1.5 rounded-full"
           style={{ backgroundColor: `${color}22` }}
         >
           {titulo}
         </span>
       </div>
-      <div className={`grid ${cols} gap-8`}>
+      <div className={`grid ${cols} gap-5`}>
         {items.map((it) => (
           <div key={it.nombre} className="text-center">
             <IconoConCirculo icon={it.icon || Coffee} color={color || '#3f6bff'} />
-            <p className="text-lg font-bold text-ink">{it.nombre}</p>
-            <p className="text-sm text-ink-mid leading-snug mt-1">{it.desc}</p>
+            <p className="text-sm font-bold text-ink">{it.nombre}</p>
+            <p className="text-xs text-ink-mid leading-snug mt-0.5">{it.desc}</p>
           </div>
         ))}
       </div>
