@@ -116,6 +116,14 @@ body {
   }
   .presupuesto .pres-page {
     width: 100%;
-    min-height: 297mm;
+    /* techo real de altura — antes solo tenía min-height, que permitía
+       que el contenido creciera sin límite. Si una página crecía más
+       de 297mm (por ej. con textos/íconos grandes), el navegador
+       insertaba una hoja extra casi en blanco para el sobrante antes
+       de pasar a la siguiente sección. Con height fijo + overflow
+       hidden, cada .pres-page ocupa exactamente una hoja A4, siempre. */
+    height: 297mm;
+    max-height: 297mm;
+    overflow: hidden;
   }
 }
