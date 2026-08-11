@@ -288,9 +288,9 @@ export default function Presupuesto() {
         <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
           <Watermark texto="volveme" />
           <div className="flex-1 flex flex-col justify-center px-14">
-            <h2 className="relative font-display text-4xl text-center text-wine mb-8">Nuestras preparaciones</h2>
+            <h2 className="relative font-display text-4xl text-center text-wine mb-6">Nuestras preparaciones</h2>
 
-            <div className="relative space-y-6">
+            <div className="relative space-y-5">
               <MenuSeccion titulo="Sin leche" color="#3f6bff" items={[
                 { nombre: 'Espresso', desc: 'Corto e intenso', icon: Coffee },
                 { nombre: 'Americano', desc: 'Doble espresso con agua — más liviano', icon: Droplet },
@@ -401,7 +401,7 @@ export default function Presupuesto() {
         </section>
 
         {/* ============ PÁGINA 7 — CIERRE ============ */}
-        <section className="pres-page flex flex-col items-center justify-center bg-paper text-center px-16">
+        <section className="pres-page flex flex-col items-center justify-center bg-peach text-center px-16">
           <p className="font-display text-4xl md:text-5xl text-wine leading-tight mb-12">
             volveme<sup className="text-2xl align-super">®</sup> la barra de café<br />para tu próximo{' '}
             <em className="font-accent text-orange not-italic">evento</em>.
@@ -479,7 +479,7 @@ function MenuSeccion({ titulo, items, color }) {
           <div key={it.nombre} className="text-center">
             <IconoConCirculo icon={it.icon || Coffee} color={color || '#3f6bff'} />
             <p className="text-sm font-bold text-ink">{it.nombre}</p>
-            <p className="text-xs text-ink-mid leading-snug mt-0.5">{it.desc}</p>
+            <p className="text-[13px] text-ink leading-snug mt-1 opacity-80">{it.desc}</p>
           </div>
         ))}
       </div>
