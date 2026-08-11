@@ -13,11 +13,13 @@ export async function generarPdfBlob(containerEl) {
   const altoPagina = 297
 
   for (let i = 0; i < paginas.length; i++) {
-    const canvas = await html2canvas(paginas[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
-    const imgData = canvas.toDataURL('image/jpeg', 0.92)
+    // scale 3 + PNG (sin pérdida) — antes era scale:2 + JPEG 0.92, que
+    // se notaba pixelado sobre todo en la foto de portada.
+    const canvas = await html2canvas(paginas[i], { scale: 3, useCORS: true, backgroundColor: '#ffffff' })
+    const imgData = canvas.toDataURL('image/png')
 
     if (i > 0) pdf.addPage()
-    pdf.addImage(imgData, 'JPEG', 0, 0, anchoPagina, altoPagina)
+    pdf.addImage(imgData, 'PNG', 0, 0, anchoPagina, altoPagina)
   }
 
   return pdf.output('blob')
