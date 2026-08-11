@@ -14,10 +14,16 @@ const COSTO_VASO_X50_POR_TAMANO = {
   '12oz': 'costo_vaso_12oz_x50',
 }
 
-function horasEntreHorarios(horaInicio, horaFin) {
-  if (!horaInicio || !horaFin) return 0
-  const [h1, m1] = horaInicio.split(':').map(Number)
-  const [h2, m2] = horaFin.split(':').map(Number)
+function horasEntreHorarios(dia) {
+  // Si el día tiene "cantidad de horas" cargada directamente (sin horario
+  // específico), usamos ese valor tal cual. Si no, calculamos la diferencia
+  // entre hora de inicio y fin como antes.
+  if (dia.duracionHoras !== undefined && dia.duracionHoras !== null && dia.duracionHoras !== '') {
+    return Number(dia.duracionHoras) || 0
+  }
+  if (!dia.horaInicio || !dia.horaFin) return 0
+  const [h1, m1] = dia.horaInicio.split(':').map(Number)
+  const [h2, m2] = dia.horaFin.split(':').map(Number)
   let minutos = (h2 * 60 + m2) - (h1 * 60 + m1)
   if (minutos < 0) minutos += 24 * 60 // cruza medianoche
   return minutos / 60
@@ -27,7 +33,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const c = config
   const dias = inputs.dias && inputs.dias.length ? inputs.dias : [{ horaInicio: '08:00', horaFin: '08:00' }]
   const cantidadDias = dias.length
-  const totalHoras = dias.reduce((sum, d) => sum + horasEntreHorarios(d.horaInicio, d.horaFin), 0)
+  const totalHoras = dias.reduce((sum, d) => sum + horasEntreHorarios(d), 0)
 
   const cafePorBebida = c.gramos_espresso * (c.precio_kilo_cafe / 1000)
 
