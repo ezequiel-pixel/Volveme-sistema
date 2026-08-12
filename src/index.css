@@ -98,6 +98,20 @@ body {
   break-after: page;
 }
 
+/* En pantallas chicas, la réplica A4 (.presupuesto) se saca de la vista
+   con position:absolute — nunca con display:none, porque html2canvas
+   necesita que el elemento tenga layout real para poder capturarlo al
+   generar el PDF (el botón "Enviar por WhatsApp"/"Imprimir" funciona
+   igual desde el celular). En su lugar se muestra ".mobile-vista",
+   pensada para leerse cómoda en pantalla chica. */
+@media screen and (max-width: 767px) {
+  .presupuesto {
+    position: absolute;
+    left: -99999px;
+    top: 0;
+  }
+}
+
 @media print {
   @page {
     size: A4;
