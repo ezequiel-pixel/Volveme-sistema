@@ -381,36 +381,6 @@ export default function Presupuesto() {
           <Footer />
         </section>
 
-        {/* ============ PÁGINA 6 — ASÍ VIVIMOS NUESTROS EVENTOS ============ */}
-        <section className="pres-page flex flex-col bg-paper">
-          <div className="flex-1 flex flex-col justify-center px-10">
-            <h2 className="font-display text-4xl text-center text-wine mb-10">Así vivimos nuestros eventos</h2>
-            {/* Grid 2 / 3 / 2 — mismo layout asimétrico de la referencia original.
-                Base de 6 columnas: fila 1 y 3 usan col-span-3 (2 fotos por fila),
-                fila 2 usa col-span-2 (3 fotos por fila). */}
-            <div className="grid grid-cols-6 gap-3">
-              {[
-                { img: 'galeria-1', span: 3 },
-                { img: 'galeria-7', span: 3 }, // foto nueva agregada
-                { img: 'galeria-4', span: 2 },
-                { img: 'galeria-2', span: 2 },
-                { img: 'galeria-3', span: 2 },
-                { img: 'galeria-6', span: 3 },
-                { img: 'galeria-5', span: 3 },
-              ].map(({ img, span }) => (
-                <img
-                  key={img}
-                  src={`/images/${img}.jpg`}
-                  alt=""
-                  className="w-full object-cover rounded-sm"
-                  style={{ height: '175px', gridColumn: `span ${span} / span ${span}` }}
-                />
-              ))}
-            </div>
-          </div>
-          <p className="text-center font-display text-2xl text-wine pb-6">volveme<sup className="text-sm">®</sup></p>
-        </section>
-
         {/* ============ PÁGINA EXTRA — ANEXO PASTELERÍA (solo si aplica) ============ */}
         {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 && (
           <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
@@ -466,6 +436,36 @@ export default function Presupuesto() {
             <Footer />
           </section>
         )}
+
+        {/* ============ PÁGINA 6 — ASÍ VIVIMOS NUESTROS EVENTOS ============ */}
+        <section className="pres-page flex flex-col bg-paper">
+          <div className="flex-1 flex flex-col justify-center px-10">
+            <h2 className="font-display text-4xl text-center text-wine mb-10">Así vivimos nuestros eventos</h2>
+            {/* Grid 2 / 3 / 2 — mismo layout asimétrico de la referencia original.
+                Base de 6 columnas: fila 1 y 3 usan col-span-3 (2 fotos por fila),
+                fila 2 usa col-span-2 (3 fotos por fila). */}
+            <div className="grid grid-cols-6 gap-3">
+              {[
+                { img: 'galeria-1', span: 3 },
+                { img: 'galeria-7', span: 3 }, // foto nueva agregada
+                { img: 'galeria-4', span: 2 },
+                { img: 'galeria-2', span: 2 },
+                { img: 'galeria-3', span: 2 },
+                { img: 'galeria-6', span: 3 },
+                { img: 'galeria-5', span: 3 },
+              ].map(({ img, span }) => (
+                <img
+                  key={img}
+                  src={`/images/${img}.jpg`}
+                  alt=""
+                  className="w-full object-cover rounded-sm"
+                  style={{ height: '175px', gridColumn: `span ${span} / span ${span}` }}
+                />
+              ))}
+            </div>
+          </div>
+          <p className="text-center font-display text-2xl text-wine pb-6">volveme<sup className="text-sm">®</sup></p>
+        </section>
 
         {/* ============ PÁGINA 7 — CIERRE ============ */}
         <section className="pres-page flex flex-col items-center justify-center bg-peach text-center px-16">
