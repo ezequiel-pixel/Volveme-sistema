@@ -5,7 +5,7 @@ import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
 import {
   Printer, ArrowLeft, MessageCircle, Loader2,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
-  CalendarDays, MapPin, Clock, Users, Timer, Cookie, Award, Sprout,
+  CalendarDays, MapPin, Clock, Users, Timer, Cookie, Sprout,
 } from 'lucide-react'
 
 const money = (n) =>
@@ -310,131 +310,85 @@ export default function Presupuesto() {
           <p className="relative text-center font-display text-3xl text-wine pb-8">volveme<sup className="text-base">®</sup></p>
         </section>
 
-        {/* ============ PÁGINA 3B — QUÉ ES EL CAFÉ DE ESPECIALIDAD ============ */}
-        <section className="pres-page flex flex-col bg-paper relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none opacity-[0.035] flex items-start justify-end pt-6 pr-6">
-            <Award size={220} strokeWidth={0.6} className="text-wine" />
-          </div>
+        {/* ============ PÁGINA 3B — CAFÉ DE ESPECIALIDAD (explicación + ficha real del mes, todo en un slide) ============ */}
+        <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
+          <Watermark texto="volveme" />
+          <div
+            className="absolute -right-10 -top-10 w-40 h-56 opacity-[0.06] pointer-events-none"
+            style={{ background: '#a47864', borderRadius: '999px 999px 0 0' }}
+          />
 
-          <div className="flex-1 flex flex-col px-14 pt-14">
-            <h2 className="font-display text-5xl text-center text-wine mb-6">Café de especialidad</h2>
-
-            <p className="text-center text-base text-ink-mid px-4 mb-4 leading-relaxed max-w-[560px] mx-auto">
+          <div className="relative flex-1 flex flex-col px-14 pt-12">
+            <h2 className="font-display text-4xl text-center text-wine mb-4">Café de especialidad</h2>
+            <p className="text-center text-sm text-ink-mid px-6 mb-8 leading-relaxed max-w-[560px] mx-auto">
               Se llama así al café que obtiene <strong className="text-ink">80 puntos o más sobre 100</strong> en
-              una cata evaluada por catadores certificados, siguiendo la escala de la Specialty Coffee
-              Association (SCA). Se mide aroma, sabor, cuerpo, acidez, dulzor, uniformidad y ausencia de
-              defectos — grano por grano, taza por taza.
-            </p>
-            <p className="text-center text-base text-ink-mid px-4 mb-10 leading-relaxed max-w-[560px] mx-auto">
-              Cada lote tiene <strong className="text-ink">trazabilidad completa</strong>: se sabe de qué finca
-              salió, quién lo cultivó, a qué altura, con qué variedad y con qué proceso se benefició. Eso es lo
-              que nos permite elegir con criterio y no por moda.
+              una cata evaluada por catadores certificados: aroma, sabor, cuerpo, acidez, dulzor y ausencia de
+              defectos. Cada lote tiene trazabilidad completa — de qué finca salió, a qué altura, con qué
+              variedad y proceso. Este es el que estamos sirviendo hoy en barra.
             </p>
 
-            <div className="max-w-[520px] mx-auto w-full">
-              <div className="flex items-center gap-2 justify-center mb-4">
-                <span className="text-xs uppercase tracking-[0.25em] font-bold text-wine bg-peach px-4 py-1.5 rounded-full">
-                  Ejemplo ilustrativo de una ficha técnica
-                </span>
-              </div>
+            {cafeDelMes ? (
+              <>
+                <div className="text-center mb-6">
+                  <div className="inline-flex items-center gap-2 bg-wine text-paper text-xs uppercase tracking-[0.2em] font-bold px-4 py-1.5 rounded-full mb-3">
+                    <Sprout size={13} /> Este mes en barra
+                  </div>
+                  <h3 className="font-display text-3xl text-wine leading-tight">{cafeDelMes.nombre_cafe}</h3>
+                </div>
 
-              <div className="border border-rule rounded-md p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-ink-light">Etiopía · Yirgacheffe</p>
-                    <p className="font-display text-2xl text-wine leading-tight">Heirloom, lavado</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[11px] uppercase tracking-wide text-ink-light">Puntaje SCA</p>
-                    <p className="font-display text-2xl text-wine">86.25</p>
-                  </div>
+                <div className="grid grid-cols-4 gap-x-4 gap-y-3 max-w-[560px] mx-auto w-full mb-6">
+                  <FichaDato label="Origen" valor={cafeDelMes.origen} />
+                  <FichaDato label="Variedad" valor={cafeDelMes.variedad} />
+                  <FichaDato label="Proceso" valor={cafeDelMes.beneficio} />
+                  <FichaDato label="Altura" valor={cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null} />
+                  <FichaDato label="Finca" valor={cafeDelMes.finca} />
+                  <FichaDato label="Puntaje" valor={cafeDelMes.puntaje ? cafeDelMes.puntaje : null} />
+                  <FichaDato label="Zafra" valor={cafeDelMes.zafra} />
+                  <FichaDato label="Región" valor={cafeDelMes.region} />
                 </div>
-                <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-4">
-                  <FichaBarra label="Aroma" valor={8} />
-                  <FichaBarra label="Sabor" valor={8.25} />
-                  <FichaBarra label="Acidez" valor={7.75} />
-                  <FichaBarra label="Cuerpo" valor={7.5} />
+
+                <div className="flex items-center justify-center gap-8 mb-4">
+                  <RadarChart
+                    size={175}
+                    metrics={[
+                      { label: 'General', value: cafeDelMes.general },
+                      { label: 'Fragancia', value: cafeDelMes.fragancia_aroma },
+                      { label: 'Sabor', value: cafeDelMes.sabor },
+                      { label: 'Acidez', value: cafeDelMes.acidez },
+                      { label: 'Cuerpo', value: cafeDelMes.cuerpo },
+                      { label: 'Balance', value: cafeDelMes.balance },
+                      { label: 'Retrogusto', value: cafeDelMes.retrogusto },
+                    ]}
+                  />
+                  {cafeDelMes.notas_sabor_tags?.length > 0 && (
+                    <div className="max-w-[200px]">
+                      <p className="text-[11px] uppercase tracking-wide text-ink-mid mb-2">Notas de sabor</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {cafeDelMes.notas_sabor_tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-xs font-medium text-wine bg-paper border border-orange/30 rounded-full px-3 py-1"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      {cafeDelMes.notas_cata && (
+                        <p className="text-xs text-ink-mid leading-relaxed mt-3 line-clamp-4">
+                          {cafeDelMes.notas_cata}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm text-ink-mid leading-relaxed border-t border-rule pt-3">
-                  <strong className="text-ink">Notas de cata:</strong> jazmín, durazno, té negro. Acidez cítrica
-                  brillante, cuerpo sedoso, final largo y dulce.
-                </p>
-              </div>
-            </div>
+              </>
+            ) : null}
           </div>
 
-          <p className="relative text-center font-display text-3xl text-wine pb-8 pt-6">volveme<sup className="text-base">®</sup></p>
+          <p className="relative text-center font-display text-2xl text-wine pb-8">
+            Probado en nuestra barra. <em className="font-accent text-orange not-italic">Listo para tu evento.</em>
+          </p>
         </section>
-
-        {/* ============ PÁGINA 3C — EL CAFÉ DE ESTE MES (dinámica, solo si hay un café activo) ============ */}
-        {cafeDelMes && (
-          <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
-            <Watermark texto="volveme" />
-            <div
-              className="absolute -right-10 -top-10 w-40 h-56 opacity-[0.06] pointer-events-none"
-              style={{ background: '#a47864', borderRadius: '999px 999px 0 0' }}
-            />
-
-            <div className="relative flex-1 flex flex-col px-14 pt-12">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center gap-2 bg-wine text-paper text-xs uppercase tracking-[0.2em] font-bold px-4 py-1.5 rounded-full mb-4">
-                  <Sprout size={13} /> Probado en barra este mes
-                </div>
-                <h2 className="font-display text-4xl text-wine leading-tight">{cafeDelMes.nombre_cafe}</h2>
-              </div>
-
-              <div className="grid grid-cols-2 gap-x-10 gap-y-4 max-w-[520px] mx-auto w-full mb-8">
-                <FichaDato label="Origen" valor={cafeDelMes.origen} />
-                <FichaDato label="Región" valor={cafeDelMes.region} />
-                <FichaDato label="Variedad" valor={cafeDelMes.variedad} />
-                <FichaDato label="Proceso" valor={cafeDelMes.beneficio} />
-                <FichaDato label="Finca" valor={cafeDelMes.finca} />
-                <FichaDato label="Altura" valor={cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null} />
-                <FichaDato label="Puntaje" valor={cafeDelMes.puntaje ? cafeDelMes.puntaje : null} />
-                <FichaDato label="Zafra" valor={cafeDelMes.zafra} />
-              </div>
-
-              <div className="flex items-center justify-center gap-10 mb-8">
-                <RadarChart
-                  metrics={[
-                    { label: 'General', value: cafeDelMes.general },
-                    { label: 'Fragancia', value: cafeDelMes.fragancia_aroma },
-                    { label: 'Sabor', value: cafeDelMes.sabor },
-                    { label: 'Acidez', value: cafeDelMes.acidez },
-                    { label: 'Cuerpo', value: cafeDelMes.cuerpo },
-                    { label: 'Balance', value: cafeDelMes.balance },
-                    { label: 'Retrogusto', value: cafeDelMes.retrogusto },
-                  ]}
-                />
-                {cafeDelMes.notas_sabor_tags?.length > 0 && (
-                  <div className="max-w-[220px]">
-                    <p className="text-[11px] uppercase tracking-wide text-ink-mid mb-2">Notas de sabor</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {cafeDelMes.notas_sabor_tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-xs font-medium text-wine bg-paper border border-orange/30 rounded-full px-3 py-1"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {cafeDelMes.notas_cata && (
-                <p className="relative text-center text-sm text-ink-mid leading-relaxed max-w-[520px] mx-auto mb-6">
-                  {cafeDelMes.notas_cata}
-                </p>
-              )}
-            </div>
-
-            <p className="relative text-center font-display text-2xl text-wine pb-8">
-              Probado en barra. <em className="font-accent text-orange not-italic">Listo para tu casa.</em>
-            </p>
-          </section>
-        )}
 
         {/* ============ PÁGINA 4 — NUESTRAS PREPARACIONES ============ */}
         <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
@@ -784,22 +738,6 @@ function Condicion({ texto }) {
     <p className="text-base text-ink-mid text-center leading-relaxed max-w-[480px] mx-auto">
       {texto}
     </p>
-  )
-}
-
-function FichaBarra({ label, valor }) {
-  const max = 10
-  const pct = Math.max(0, Math.min(100, ((valor || 0) / max) * 100))
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-ink-mid">{label}</span>
-        <span className="text-xs font-bold text-wine">{valor}</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-peach overflow-hidden">
-        <div className="h-full bg-orange rounded-full" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
   )
 }
 
