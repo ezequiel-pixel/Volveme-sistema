@@ -103,8 +103,15 @@ function LugarConMapa({ value, lat, lng, distKm, onChange }) {
   )
 }
 
+// Redondeo hacia arriba a la centena más cercana — se usa tanto para
+// mostrar como para lo que se guarda en la base, así el número que ve
+// Eze es siempre el mismo que queda grabado en la cotización.
+const redondearArriba = (n) => Math.ceil((n || 0) / 100) * 100
+
 const money = (n) =>
-  (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
+  // redondeo siempre hacia arriba, a la centena más cercana — nunca
+  // centavos ni números "raros" en la cotización o el PDF
+  (Math.ceil((n || 0) / 100) * 100).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
 const defaultInputs = {
   nombre_cliente: '', nombre_evento: '', lugar: '', lugar_lat: null, lugar_lng: null, distancia_km: null,
@@ -376,14 +383,14 @@ export default function NuevaCotizacion() {
       iva_pct: inputs.iva_pct !== '' ? Number(inputs.iva_pct) : config.iva_pct,
       estado: 'enviada',
       recotizada_desde_id: recotizarDesdeId || null,
-      costo_total: resultado.costoTotal,
-      precio_neto: resultado.precioNeto,
-      iva_monto: resultado.ivaMonto,
-      precio_final: resultado.precioFinal + (llevaPasteleria ? pasteleriaSubtotal : 0),
+      costo_total: redondearArriba(resultado.costoTotal),
+      precio_neto: redondearArriba(resultado.precioNeto),
+      iva_monto: redondearArriba(resultado.ivaMonto),
+      precio_final: redondearArriba(resultado.precioFinal + (llevaPasteleria ? pasteleriaSubtotal : 0)),
       margen_pct: resultado.margenPct,
       lleva_pasteleria: llevaPasteleria,
       pasteleria_markup_pct: llevaPasteleria ? pasteleriaMarkup / 100 : null,
-      pasteleria_subtotal: llevaPasteleria ? pasteleriaSubtotal : 0,
+      pasteleria_subtotal: llevaPasteleria ? redondearArriba(pasteleriaSubtotal) : 0,
     }).select('id').single()
 
     if (errCot) { setSaving(false); setError(`No se pudo guardar la cotización: ${errCot.message}`); console.error(errCot); return }

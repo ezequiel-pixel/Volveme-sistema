@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabase'
 import { ArrowLeft, FileText, RefreshCw, Cookie } from 'lucide-react'
 
 const money = (n) =>
-  (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
+  // redondeo siempre hacia arriba, a la centena más cercana — nunca
+  // centavos ni números "raros" en la cotización o el PDF
+  (Math.ceil((n || 0) / 100) * 100).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
 const pct = (n) => `${((n || 0) * 100).toFixed(1)}%`
 
