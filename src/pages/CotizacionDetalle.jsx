@@ -174,9 +174,10 @@ export default function CotizacionDetalle() {
           </Seccion>
 
           <Seccion titulo="Adicionales">
-            <Dato label="Flete" valor={money(cot.costo_flete)} />
+            <Dato label="Flete / Transporte" valor={money(cot.costo_flete)} />
             <Dato label="ART" valor={cot.art ? money(cot.art_monto) : 'No aplica'} />
             <Dato label="Cláusula RC" valor={money(cot.clausula_rc_monto)} />
+            <Dato label="Extra distancia" valor={money(cot.extra_distancia)} />
           </Seccion>
         </div>
 

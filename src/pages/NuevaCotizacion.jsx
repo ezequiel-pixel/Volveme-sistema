@@ -1,19 +1,119 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
-import { Plus, X, ArrowLeft, Coffee, CalendarDays, Users, Sparkles } from 'lucide-react'
+import { Plus, X, ArrowLeft, Coffee, CalendarDays, Users, Sparkles, MapPin } from 'lucide-react'
+
+// Coordenadas aproximadas de La Lucila, Vicente López — punto de partida fijo
+// para estimar distancia (en línea recta) hasta el lugar del evento.
+const LA_LUCILA = { lat: -34.4956, lng: -58.4854 }
+
+function distanciaKm(lat1, lng1, lat2, lng2) {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+// Carga el script de Google Maps (Places) una sola vez, sólo si hay API key
+// configurada. Si no hay key, el campo de Lugar sigue funcionando como
+// texto plano — no rompe nada.
+function useGoogleMapsLoaded() {
+  const [loaded, setLoaded] = useState(!!window.google?.maps?.places)
+  useEffect(() => {
+    if (window.google?.maps?.places) { setLoaded(true); return }
+    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    if (!key) return
+    const existing = document.querySelector('script[data-google-maps]')
+    if (existing) {
+      existing.addEventListener('load', () => setLoaded(true))
+      return
+    }
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`
+    script.async = true
+    script.dataset.googleMaps = 'true'
+    script.onload = () => setLoaded(true)
+    document.head.appendChild(script)
+  }, [])
+  return loaded
+}
+
+// Campo de "Lugar" con autocompletado de Google Places (si hay API key) y
+// cálculo de distancia en línea recta desde La Lucila. El flete se sigue
+// cargando a mano — esto es solo para tener una referencia de distancia.
+function LugarConMapa({ value, lat, lng, distKm, onChange }) {
+  const inputRef = useRef(null)
+  const mapsLoaded = useGoogleMapsLoaded()
+
+  useEffect(() => {
+    if (!mapsLoaded || !inputRef.current || !window.google?.maps?.places) return
+    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+      types: ['geocode'],
+      componentRestrictions: { country: 'ar' },
+      fields: ['formatted_address', 'geometry', 'name'],
+    })
+    autocomplete.setBounds(
+      new window.google.maps.LatLngBounds({ lat: -35.5, lng: -59.5 }, { lat: -33.5, lng: -57.5 })
+    )
+    const listener = autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace()
+      if (!place.geometry) return
+      const placeLat = place.geometry.location.lat()
+      const placeLng = place.geometry.location.lng()
+      const dist = distanciaKm(LA_LUCILA.lat, LA_LUCILA.lng, placeLat, placeLng)
+      onChange({
+        lugar: place.formatted_address || place.name,
+        lugar_lat: placeLat,
+        lugar_lng: placeLng,
+        distancia_km: Math.round(dist * 10) / 10,
+      })
+    })
+    return () => window.google.maps.event.removeListener(listener)
+  }, [mapsLoaded])
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => onChange({ lugar: e.target.value, lugar_lat: null, lugar_lng: null, distancia_km: null })}
+        className="input"
+        placeholder={mapsLoaded ? 'Buscá la localidad o zona…' : 'Ej: Cardales, La Rural…'}
+      />
+      {distKm != null && (
+        <p className="text-xs text-ink-light mt-1 flex items-center gap-1.5">
+          <MapPin size={12} /> ~{distKm} km desde La Lucila
+          {lat && lng && (
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&origin=${LA_LUCILA.lat},${LA_LUCILA.lng}&destination=${lat},${lng}`}
+              target="_blank" rel="noreferrer"
+              className="underline hover:text-ink"
+            >
+              Ver ruta en Google Maps ↗
+            </a>
+          )}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
 const defaultInputs = {
-  nombre_cliente: '', nombre_evento: '', lugar: '',
+  nombre_cliente: '', nombre_evento: '', lugar: '', lugar_lat: null, lugar_lng: null, distancia_km: null,
   cantidad_pax: 25, nivel: 'Esencial', tamano_vaso: '6oz',
   cantidad_cafes_override: '', cantidad_baristas: 1, tipo_barra: 'Barra chica 1 grupo',
   amortizacion_override: '', alquiler_maquina_extra: false, alquiler_molino_extra: false,
-  calcos: false, logo_3d: false, costo_flete: 0, art: false, art_monto: 0,
-  clausula_rc_monto: 0, multiplicador: '', iva_pct: '',
+  calcos: false, logo_3d: false, costo_flete: 0, art: false, art_monto: '',
+  clausula_rc_monto: 0, multiplicador: '', iva_pct: '', extra_barista_monto: '',
+  extra_distancia: 0,
 }
 
 const defaultDia = () => ({ modo: 'horario', fecha: '', horaInicio: '08:00', horaFin: '18:00', duracionHoras: '' })
@@ -61,6 +161,9 @@ export default function NuevaCotizacion() {
           nombre_cliente: cot.clientes?.nombre || '',
           nombre_evento: cot.nombre_evento || '',
           lugar: cot.lugar || '',
+          lugar_lat: cot.lugar_lat || null,
+          lugar_lng: cot.lugar_lng || null,
+          distancia_km: cot.distancia_km || null,
           cantidad_pax: cot.cantidad_pax || 25,
           nivel: cot.nivel === 'premium' || cot.nivel === 'Premium' ? 'Premium' : 'Esencial',
           tamano_vaso: cot.tamano_vaso || '6oz',
@@ -76,6 +179,8 @@ export default function NuevaCotizacion() {
           art: cot.art || false,
           art_monto: cot.art_monto || 0,
           clausula_rc_monto: cot.clausula_rc_monto || 0,
+          extra_barista_monto: cot.extra_barista_monto || '',
+          extra_distancia: cot.extra_distancia ?? 0,
           multiplicador: '',
           iva_pct: '',
         })
@@ -138,6 +243,8 @@ export default function NuevaCotizacion() {
           clausula_rc_monto: Number(inputs.clausula_rc_monto) || 0,
           multiplicador: inputs.multiplicador ? Number(inputs.multiplicador) : null,
           iva_pct: inputs.iva_pct !== '' ? Number(inputs.iva_pct) : null,
+          extra_barista_monto: Number(inputs.extra_barista_monto) || 0,
+          extra_distancia: Number(inputs.extra_distancia) || 0,
         },
         config, amortizaciones
       )
@@ -182,6 +289,9 @@ export default function NuevaCotizacion() {
       fecha_evento: primerDia.fecha,
       hora_inicio: primerDia.horaInicio || null,
       lugar: inputs.lugar || null,
+      lugar_lat: inputs.lugar_lat || null,
+      lugar_lng: inputs.lugar_lng || null,
+      distancia_km: inputs.distancia_km || null,
       cantidad_pax: Number(inputs.cantidad_pax) || null,
       nivel: inputs.nivel.toLowerCase(),
       tamano_vaso: inputs.tamano_vaso,
@@ -197,6 +307,8 @@ export default function NuevaCotizacion() {
       art: inputs.art,
       art_monto: Number(inputs.art_monto) || 0,
       clausula_rc_monto: Number(inputs.clausula_rc_monto) || 0,
+      extra_barista_monto: Number(inputs.extra_barista_monto) || 0,
+      extra_distancia: Number(inputs.extra_distancia) || 0,
       multiplicador: inputs.multiplicador ? Number(inputs.multiplicador) : config.multiplicador_precio,
       iva_pct: inputs.iva_pct !== '' ? Number(inputs.iva_pct) : config.iva_pct,
       estado: 'enviada',
@@ -260,7 +372,13 @@ export default function NuevaCotizacion() {
               </Row>
               <Row>
                 <Field label="Lugar">
-                  <input value={inputs.lugar} onChange={(e) => update('lugar', e.target.value)} className="input" placeholder="Ej: Cardales, La Rural…" />
+                  <LugarConMapa
+                    value={inputs.lugar}
+                    lat={inputs.lugar_lat}
+                    lng={inputs.lugar_lng}
+                    distKm={inputs.distancia_km}
+                    onChange={(patch) => setInputs((prev) => ({ ...prev, ...patch }))}
+                  />
                 </Field>
                 <Field label="Cantidad de invitados (Pax)">
                   <input type="number" min="0" value={inputs.cantidad_pax} onChange={(e) => update('cantidad_pax', e.target.value)} className="input" />
@@ -350,6 +468,15 @@ export default function NuevaCotizacion() {
                   </select>
                 </Field>
               </Row>
+              <Field label="Extra al barista ($, opcional — bono, hora extra puntual, etc.)">
+                <input
+                  type="number" min="0"
+                  value={inputs.extra_barista_monto}
+                  onChange={(e) => update('extra_barista_monto', e.target.value)}
+                  className="input"
+                  placeholder="0"
+                />
+              </Field>
               <div className="flex gap-5 pt-1">
                 <Checkbox label="Alquiler máquina extra" checked={inputs.alquiler_maquina_extra} onChange={(v) => update('alquiler_maquina_extra', v)} />
                 <Checkbox label="Alquiler molino extra" checked={inputs.alquiler_molino_extra} onChange={(v) => update('alquiler_molino_extra', v)} />
@@ -360,18 +487,36 @@ export default function NuevaCotizacion() {
               <div className="flex gap-5">
                 <Checkbox label="Calcos" checked={inputs.calcos} onChange={(v) => update('calcos', v)} />
                 <Checkbox label="Logo 3D" checked={inputs.logo_3d} onChange={(v) => update('logo_3d', v)} />
-                <Checkbox label="ART" checked={inputs.art} onChange={(v) => update('art', v)} />
+                <Checkbox
+                  label="ART"
+                  checked={inputs.art}
+                  onChange={(v) => setInputs((prev) => ({
+                    ...prev,
+                    art: v,
+                    art_monto: v && prev.art_monto === '' ? 2000 : prev.art_monto,
+                  }))}
+                />
               </div>
               <Row>
-                <Field label="Flete ($)">
-                  <input type="number" min="0" value={inputs.costo_flete} onChange={(e) => update('costo_flete', e.target.value)} className="input" />
+                <Field label="Flete / Transporte ($)">
+                  <input type="number" min="0" value={inputs.costo_flete} onChange={(e) => update('costo_flete', e.target.value)} className="input" placeholder="0" />
                 </Field>
                 {inputs.art && (
                   <Field label="Monto ART ($)">
-                    <input type="number" min="0" value={inputs.art_monto} onChange={(e) => update('art_monto', e.target.value)} className="input" />
+                    <input type="number" min="0" value={inputs.art_monto} onChange={(e) => update('art_monto', e.target.value)} className="input" placeholder="2000" />
                   </Field>
                 )}
               </Row>
+            </SectionCard>
+
+            <SectionCard icon={Sparkles} title="Extra distancia" color="coral">
+              <Field label="Extra distancia ($) — cargalo vos según el evento">
+                <input type="number" min="0" value={inputs.extra_distancia} onChange={(e) => update('extra_distancia', e.target.value)} className="input" placeholder="0" />
+              </Field>
+              <p className="text-xs text-ink-light">
+                Guía: para un evento de ~2hs con distancia considerable, contá al menos 1 hora extra
+                (1 × ${config ? Number(config.sueldo_barista_hora || 0).toLocaleString('es-AR') : '12.500'} por barista) como referencia.
+              </p>
             </SectionCard>
 
             {error && <p className="text-coral text-sm">{error}</p>}
@@ -394,7 +539,10 @@ export default function NuevaCotizacion() {
                     <LineaResumen label="Insumos" valor={money(resultado.totalInsumos)} />
                     <LineaResumen label="Mano de obra" valor={money(resultado.totalManoDeObra)} />
                     <LineaResumen label="Amortización equipo" valor={money(resultado.amortizacionTotal)} />
-                    <LineaResumen label="Operativos" valor={money(resultado.flete + resultado.art + resultado.clausulaRc)} />
+                    <LineaResumen label="Operativos (flete/transporte, ART, RC)" valor={money(resultado.flete + resultado.art + resultado.clausulaRc)} />
+                    <LineaResumen label="Extra distancia" valor={money(resultado.extraDistancia)} />
+                    <LineaResumen label="Calcos + Logo 3D" valor={money(resultado.costoCalcos + resultado.costoLogo3d)} />
+                    <LineaResumen label={`Imprevistos (${(resultado.imprevistosPct * 100).toFixed(0)}%)`} valor={money(resultado.imprevistosMonto)} />
                   </div>
                   <div className="border-t border-rule pt-3">
                     <LineaResumen label="Costo total" valor={money(resultado.costoTotal)} bold />
