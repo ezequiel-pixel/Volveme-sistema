@@ -124,7 +124,10 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
 
   const precioNeto = costoTotal * multiplicador
   const ivaMonto = precioNeto * ivaPct
-  const precioFinal = precioNeto + ivaMonto
+  // El precio que se cotiza NO incluye IVA — se calcula el IVA y se
+  // guarda por si hace falta para facturación/contabilidad, pero no se
+  // suma al precio final que se le muestra al cliente.
+  const precioFinal = precioNeto
 
   const utilidad = precioNeto - costoTotal
   const margenPct = precioNeto > 0 ? utilidad / precioNeto : 0
