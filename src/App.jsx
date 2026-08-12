@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Eventos from './pages/Eventos'
 import EventoDetalle from './pages/EventoDetalle'
 import Cotizaciones from './pages/Cotizaciones'
+import CotizacionDetalle from './pages/CotizacionDetalle'
 import NuevaCotizacion from './pages/NuevaCotizacion'
 import Presupuesto from './pages/Presupuesto'
 import Layout from './components/Layout'
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/eventos/:id" element={<EventoDetalle />} />
         <Route path="/cotizaciones" element={<Cotizaciones />} />
         <Route path="/cotizaciones/nueva" element={<NuevaCotizacion />} />
+        <Route path="/cotizaciones/:id" element={<CotizacionDetalle />} />
         <Route path="/staff" element={<ComingSoon title="Staff" />} />
         <Route path="/equipamiento" element={<ComingSoon title="Equipamiento" />} />
         <Route path="/stock" element={<ComingSoon title="Insumos y Stock" />} />
