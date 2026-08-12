@@ -358,8 +358,8 @@ export default function Presupuesto() {
                 </div>
                 <div className="flex-1 text-center py-4">
                   <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Precio</p>
-                  <p className="font-display text-3xl text-wine">{money(cotizacion.precio_final)}</p>
-                  <p className="text-xs text-ink-light mt-1">Precio final</p>
+                  <p className="font-display text-3xl text-wine">{money(cotizacion.precio_neto)}</p>
+                  <p className="text-xs text-ink-light mt-1">Precio café — + IVA</p>
                 </div>
               </div>
 
@@ -430,10 +430,62 @@ export default function Presupuesto() {
                 <div className="bg-paper rounded-md p-6 text-center">
                   <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Total pastelería</p>
                   <p className="font-display text-4xl text-wine">{money(cotizacion.pasteleria_subtotal)}</p>
+                  <p className="text-xs text-ink-light mt-1">+ IVA</p>
                 </div>
               </div>
             </div>
             <Footer />
+          </section>
+        )}
+
+        {/* ============ PÁGINA EXTRA — TOTAL GENERAL (solo si lleva pastelería) ============ */}
+        {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 && (
+          <section className="pres-page flex flex-col items-center justify-center bg-wine text-center px-16 relative overflow-hidden">
+            {/* marca de agua, versión clara para fondo oscuro */}
+            <p
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-display whitespace-nowrap text-paper/[0.04] select-none pointer-events-none"
+              style={{ fontSize: '9rem' }}
+            >
+              volveme
+            </p>
+            {/* acento decorativo de marca — forma de arco, ver manual pág. 31 */}
+            <div
+              className="absolute -left-14 -bottom-14 w-48 h-64 opacity-[0.08] pointer-events-none"
+              style={{ background: '#ff6a1a', borderRadius: '999px 999px 0 0' }}
+            />
+            <div
+              className="absolute -right-10 -top-16 w-36 h-48 opacity-[0.06] pointer-events-none"
+              style={{ background: '#fd926f', borderRadius: '999px 999px 0 0' }}
+            />
+
+            <div className="relative">
+              <div className="relative w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+                <span className="absolute w-11 h-11 rounded-full" style={{ backgroundColor: '#ff6a1a', opacity: 0.6, top: -3, right: -3 }} />
+                <Coffee size={30} strokeWidth={1.4} className="relative text-paper" />
+              </div>
+
+              <p className="text-xs uppercase tracking-[0.3em] text-peach/70 mb-8">Presupuesto completo</p>
+
+              <div className="flex items-center justify-center gap-8 mb-8">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-peach/60 mb-1">Café</p>
+                  <p className="font-display text-2xl text-paper">{money(cotizacion.precio_neto)}</p>
+                </div>
+                <p className="font-accent text-3xl text-orange not-italic">+</p>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-peach/60 mb-1">Pastelería</p>
+                  <p className="font-display text-2xl text-paper">{money(cotizacion.pasteleria_subtotal)}</p>
+                </div>
+              </div>
+
+              <div className="w-24 h-px bg-peach/25 mx-auto mb-8" />
+
+              <p className="font-display text-xl text-paper mb-2">
+                Total <em className="font-accent text-orange not-italic text-2xl">general</em>
+              </p>
+              <p className="font-display text-6xl text-paper mb-3 leading-none">{money(cotizacion.precio_final)}</p>
+              <p className="text-sm text-peach/70">+ IVA</p>
+            </div>
           </section>
         )}
 
