@@ -173,6 +173,126 @@ export default function Presupuesto() {
         </div>
       </div>
 
+      {/* ============ VISTA MOBILE — solo para leer cómodo en el celular ============
+          El PDF real (botones de arriba) siempre sale del bloque de abajo, con el
+          tamaño A4 exacto — esto es nada más una versión legible en pantalla chica,
+          no se imprime ni se manda, es para revisar antes de enviar. */}
+      <div className="mobile-vista md:hidden print:hidden bg-paper">
+        <div className="text-center pt-10 pb-6 px-6 border-b border-rule">
+          <p className="font-display text-4xl text-wine mb-1">volveme<sup className="text-sm align-super">®</sup></p>
+          <p className="text-[11px] tracking-[0.15em] uppercase text-ink font-semibold">
+            Barra de café de especialidad móvil
+          </p>
+        </div>
+
+        <div className="px-6 py-8 space-y-8">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Presupuesto para</p>
+            <p className="font-display text-3xl text-wine mb-1 leading-tight">{cotizacion.clientes?.nombre || '—'}</p>
+            <p className="text-sm font-bold text-ink-mid uppercase tracking-wide">
+              {cotizacion.nombre_evento || 'Evento privado'}
+            </p>
+          </div>
+
+          <div className="bg-peach rounded-lg p-5 space-y-4">
+            {dias.map((dia, i) => (
+              <MobileDato
+                key={`f-${i}`}
+                icon={CalendarDays}
+                label={esMultiDia ? `Fecha (día ${i + 1})` : 'Fecha'}
+                valor={formatFecha(dia.fecha)}
+              />
+            ))}
+            <MobileDato icon={MapPin} label="Ubicación" valor={cotizacion.lugar || '—'} />
+            {dias.map((dia, i) => (
+              dia.hora_inicio && dia.hora_fin ? (
+                <MobileDato
+                  key={`h-${i}`}
+                  icon={Clock}
+                  label={esMultiDia ? `Horario (día ${i + 1})` : 'Horario'}
+                  valor={`${dia.hora_inicio.slice(0, 5)} a ${dia.hora_fin.slice(0, 5)}hs`}
+                />
+              ) : null
+            ))}
+            <MobileDato icon={Users} label="Invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
+          </div>
+
+          {cafeDelMes && (
+            <div className="border border-rule rounded-lg p-5">
+              <p className="text-xs uppercase tracking-wide text-ink-mid mb-2">Café de especialidad — este mes en barra</p>
+              <p className="font-display text-xl text-wine mb-1 leading-tight">{cafeDelMes.nombre_cafe}</p>
+              <p className="text-sm text-ink-mid">
+                {[cafeDelMes.variedad, cafeDelMes.beneficio].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+          )}
+
+          <div>
+            <p className="font-display text-2xl text-wine mb-3">Qué incluye</p>
+            <ul className="space-y-2.5">
+              <MobileIncluye texto={`${cotizacion.cantidad_baristas || 1} Barista${cotizacion.cantidad_baristas > 1 ? 's' : ''}`} />
+              <MobileIncluye texto="Bebidas calientes (espresso, americano, latte, flat white y capuccino)" />
+              <MobileIncluye texto="Leche entera, de avena y almendras" />
+              {cotizacion.logo_3d && <MobileIncluye texto="Logo impreso en el arte latte (algunos cafés)" />}
+              {cotizacion.calcos && <MobileIncluye texto={`Calcos en los vasos de ${cotizacion.tamano_vaso}`} />}
+              <MobileIncluye texto="Azúcar, edulcorante, servilletas y removedores" />
+              <MobileIncluye texto="Vasos de polipapel" />
+              <MobileIncluye texto="Transporte, montaje y desmontaje" />
+            </ul>
+          </div>
+
+          {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 && (
+            <div>
+              <p className="font-display text-2xl text-wine mb-3">Pastelería</p>
+              <ul className="space-y-3">
+                {pasteleriaItems.map((it) => {
+                  const precioUnitario = it.precio_proveedor * (1 + (cotizacion.pasteleria_markup_pct || 0))
+                  return (
+                    <li key={it.id} className="flex items-center justify-between text-sm border-b border-rule pb-2.5">
+                      <span className="text-ink-mid">{it.nombre_producto} <span className="text-ink-light">× {it.cantidad}</span></span>
+                      <span className="font-bold text-ink">{money(precioUnitario * it.cantidad)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+
+          <div className="bg-wine rounded-lg p-6 text-center">
+            <p className="text-[11px] uppercase tracking-wide text-peach/70 mb-2">Precio</p>
+            {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 ? (
+              <p className="text-sm text-peach/80 mb-2">
+                Café {money(cotizacion.precio_neto)} + Pastelería {money(cotizacion.pasteleria_subtotal)}
+              </p>
+            ) : null}
+            <p className="font-display text-4xl text-paper mb-1 leading-none">
+              {money(cotizacion.lleva_pasteleria ? cotizacion.precio_final : cotizacion.precio_neto)}
+            </p>
+            <p className="text-sm text-peach/70">+ IVA</p>
+          </div>
+
+          <p className="text-xs text-ink-light underline text-center">*Este presupuesto tiene validez por 15 días</p>
+
+          <div className="space-y-2.5 pt-2">
+            <p className="font-display text-xl text-wine mb-1">Condiciones</p>
+            <p className="text-sm text-ink-mid leading-relaxed">
+              <strong className="text-ink">Reserva anticipada</strong> con el 50% y saldo restante 24hs antes del evento.
+            </p>
+            <p className="text-sm text-ink-mid leading-relaxed">
+              Punto eléctrico para el equipamiento de <strong className="text-ink">10A.</strong>
+            </p>
+            <p className="text-sm text-ink-mid leading-relaxed">
+              Informar si el acceso al lugar del evento presenta obstáculos o desniveles.
+            </p>
+          </div>
+
+          <div className="text-center text-xs text-ink-light space-y-1 pt-6 border-t border-rule">
+            <p>www.volveme.com · volveme.cafe</p>
+            <p>info@volveme.com · +54 9 11 5841-6365</p>
+          </div>
+        </div>
+      </div>
+
       <div ref={contenidoRef} className="presupuesto max-w-[820px] mx-auto bg-paper">
         {/* ============ PÁGINA 1 — PORTADA ============ */}
         <section className="pres-page flex flex-col bg-paper">
@@ -685,6 +805,27 @@ function Condicion({ texto }) {
     <p className="text-base text-ink-mid text-center leading-relaxed max-w-[480px] mx-auto">
       {texto}
     </p>
+  )
+}
+
+function MobileDato({ label, valor, icon: Icon }) {
+  return (
+    <div className="flex items-center gap-3">
+      {Icon && <Icon size={18} strokeWidth={1.8} className="text-wine flex-shrink-0" />}
+      <div>
+        <p className="text-[11px] uppercase tracking-wide text-ink-mid">{label}</p>
+        <p className="text-base font-bold text-ink">{valor}</p>
+      </div>
+    </div>
+  )
+}
+
+function MobileIncluye({ texto }) {
+  return (
+    <li className="flex items-start gap-2.5 text-sm text-ink-mid leading-relaxed">
+      <CheckCircle2 size={16} strokeWidth={2} className="text-orange flex-shrink-0 mt-0.5" />
+      {texto}
+    </li>
   )
 }
 
