@@ -348,7 +348,7 @@ export default function Presupuesto() {
                 <div className="flex-1 text-center py-4">
                   <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Precio</p>
                   <p className="font-display text-3xl text-wine">{money(cotizacion.precio_final)}</p>
-                  <p className="text-xs text-ink-light mt-1">Precio final, IVA incluido</p>
+                  <p className="text-xs text-ink-light mt-1">Precio final</p>
                 </div>
               </div>
 

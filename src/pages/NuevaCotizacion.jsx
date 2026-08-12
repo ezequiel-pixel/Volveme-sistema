@@ -527,7 +527,7 @@ export default function NuevaCotizacion() {
             <div className="bg-wine text-paper rounded-lg p-6">
               <p className="text-xs uppercase tracking-wide text-peach/80 mb-1">Precio final</p>
               <p className="font-display text-4xl mb-1">{resultado ? money(resultado.precioFinal) : '—'}</p>
-              <p className="text-xs text-peach/70">IVA incluido</p>
+              <p className="text-xs text-peach/70">Sin IVA</p>
             </div>
 
             <div className="border border-rule rounded-lg p-5 bg-paper-card space-y-3 text-sm">
@@ -549,6 +549,7 @@ export default function NuevaCotizacion() {
                   </div>
                   <div className="border-t border-rule pt-3">
                     <LineaResumen label="Margen" valor={`${(resultado.margenPct * 100).toFixed(1)}%`} />
+                    <LineaResumen label={`IVA (${((resultado.ivaMonto / (resultado.precioNeto || 1)) * 100).toFixed(0)}%) — no sumado al total`} valor={money(resultado.ivaMonto)} />
                     <LineaResumen label="Consumo x persona" valor={money(resultado.consumoPromedioPorPersona)} />
                   </div>
                 </>
