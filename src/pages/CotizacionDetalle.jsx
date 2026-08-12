@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, FileText, RefreshCw } from 'lucide-react'
+import { ArrowLeft, FileText, RefreshCw, Cookie } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -35,6 +35,7 @@ export default function CotizacionDetalle() {
   const { id } = useParams()
   const [cot, setCot] = useState(null)
   const [dias, setDias] = useState([])
+  const [pasteleriaItems, setPasteleriaItems] = useState([])
   const [origen, setOrigen] = useState(null)
   const [siguiente, setSiguiente] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -56,6 +57,15 @@ export default function CotizacionDetalle() {
 
       setCot(cotizacion)
       setDias(diasData || [])
+
+      if (cotizacion?.lleva_pasteleria) {
+        const { data: itemsData } = await supabase
+          .from('cotizacion_pasteleria_items')
+          .select('*')
+          .eq('cotizacion_id', id)
+          .order('orden')
+        setPasteleriaItems(itemsData || [])
+      }
 
       // Si esta cotización viene de otra (fue re-cotizada desde una anterior)
       if (cotizacion?.recotizada_desde_id) {
@@ -193,6 +203,24 @@ export default function CotizacionDetalle() {
             </div>
             <Dato label="Margen" valor={pct(cot.margen_pct)} />
           </Seccion>
+
+          {cot.lleva_pasteleria && pasteleriaItems.length > 0 && (
+            <Seccion titulo="Pastelería" nota={`Margen aplicado: ${((cot.pasteleria_markup_pct || 0) * 100).toFixed(0)}%`}>
+              {pasteleriaItems.map((it) => {
+                const precioUnitario = it.precio_proveedor * (1 + (cot.pasteleria_markup_pct || 0))
+                return (
+                  <Dato
+                    key={it.id}
+                    label={`${it.nombre_producto} (x${it.cantidad})`}
+                    valor={money(precioUnitario * it.cantidad)}
+                  />
+                )
+              })}
+              <div className="pt-2 mt-2 border-t border-rule">
+                <Dato label="Subtotal pastelería" valor={money(cot.pasteleria_subtotal)} bold />
+              </div>
+            </Seccion>
+          )}
 
           <Seccion titulo="Cliente">
             <Dato label="Nombre" valor={cot.clientes?.nombre || '—'} />

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
-import { Plus, X, ArrowLeft, Coffee, CalendarDays, Users, Sparkles, MapPin } from 'lucide-react'
+import { Plus, X, ArrowLeft, Coffee, CalendarDays, Users, Sparkles, MapPin, Cookie, Clock } from 'lucide-react'
 
 // Coordenadas aproximadas de La Lucila, Vicente López — punto de partida fijo
 // para estimar distancia (en línea recta) hasta el lugar del evento.
@@ -130,6 +130,54 @@ export default function NuevaCotizacion() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // ---- Pastelería (opcional) ----
+  const [productosPasteleria, setProductosPasteleria] = useState([])
+  const [llevaPasteleria, setLlevaPasteleria] = useState(false)
+  const [pasteleriaMarkup, setPasteleriaMarkup] = useState(65) // %
+  const [pasteleriaItems, setPasteleriaItems] = useState([]) // [{producto_id, nombre, precio_proveedor, cantidad}]
+
+  useEffect(() => {
+    async function cargarPasteleria() {
+      const { data } = await supabase
+        .from('pasteleria_productos')
+        .select('*')
+        .eq('activo', true)
+        .order('orden')
+      setProductosPasteleria(data || [])
+    }
+    cargarPasteleria()
+  }, [])
+
+  function agregarItemPasteleria() {
+    const primero = productosPasteleria[0]
+    if (!primero) return
+    setPasteleriaItems((prev) => [
+      ...prev,
+      { producto_id: primero.id, nombre: primero.nombre, precio_proveedor: primero.precio_proveedor, cantidad: 1 },
+    ])
+  }
+
+  function actualizarItemPasteleria(idx, campo, valor) {
+    setPasteleriaItems((prev) => prev.map((it, i) => {
+      if (i !== idx) return it
+      if (campo === 'producto_id') {
+        const prod = productosPasteleria.find((p) => p.id === valor)
+        return { ...it, producto_id: valor, nombre: prod?.nombre || '', precio_proveedor: prod?.precio_proveedor || 0 }
+      }
+      return { ...it, [campo]: valor }
+    }))
+  }
+
+  function quitarItemPasteleria(idx) {
+    setPasteleriaItems((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const pasteleriaSubtotal = pasteleriaItems.reduce(
+    (sum, it) => sum + (Number(it.cantidad) || 0) * (it.precio_proveedor || 0) * (1 + pasteleriaMarkup / 100),
+    0
+  )
+  const pasteleriaPiezasTotales = pasteleriaItems.reduce((sum, it) => sum + (Number(it.cantidad) || 0), 0)
+
   useEffect(() => {
     async function cargarConfig() {
       const { data: configRows } = await supabase.from('config_pricing').select('*')
@@ -184,6 +232,8 @@ export default function NuevaCotizacion() {
           multiplicador: '',
           iva_pct: '',
         })
+        setLlevaPasteleria(cot.lleva_pasteleria || false)
+        setPasteleriaMarkup(cot.pasteleria_markup_pct != null ? cot.pasteleria_markup_pct * 100 : 65)
       }
       if (diasCot && diasCot.length) {
         setDias(diasCot.map((d) => ({
@@ -192,6 +242,19 @@ export default function NuevaCotizacion() {
           horaInicio: d.hora_inicio?.slice(0, 5) || '08:00',
           horaFin: d.hora_fin?.slice(0, 5) || '18:00',
           duracionHoras: d.duracion_horas != null ? String(d.duracion_horas) : '',
+        })))
+      }
+      const { data: itemsPast } = await supabase
+        .from('cotizacion_pasteleria_items')
+        .select('*')
+        .eq('cotizacion_id', recotizarDesdeId)
+        .order('orden')
+      if (itemsPast && itemsPast.length) {
+        setPasteleriaItems(itemsPast.map((it) => ({
+          producto_id: it.producto_id,
+          nombre: it.nombre_producto,
+          precio_proveedor: it.precio_proveedor,
+          cantidad: it.cantidad,
         })))
       }
     }
@@ -316,8 +379,11 @@ export default function NuevaCotizacion() {
       costo_total: resultado.costoTotal,
       precio_neto: resultado.precioNeto,
       iva_monto: resultado.ivaMonto,
-      precio_final: resultado.precioFinal,
+      precio_final: resultado.precioFinal + (llevaPasteleria ? pasteleriaSubtotal : 0),
       margen_pct: resultado.margenPct,
+      lleva_pasteleria: llevaPasteleria,
+      pasteleria_markup_pct: llevaPasteleria ? pasteleriaMarkup / 100 : null,
+      pasteleria_subtotal: llevaPasteleria ? pasteleriaSubtotal : 0,
     }).select('id').single()
 
     if (errCot) { setSaving(false); setError(`No se pudo guardar la cotización: ${errCot.message}`); console.error(errCot); return }
@@ -332,6 +398,19 @@ export default function NuevaCotizacion() {
         orden: i,
       }))
     )
+
+    if (llevaPasteleria && pasteleriaItems.length > 0) {
+      await supabase.from('cotizacion_pasteleria_items').insert(
+        pasteleriaItems.map((it, i) => ({
+          cotizacion_id: nuevaCot.id,
+          producto_id: it.producto_id,
+          nombre_producto: it.nombre,
+          precio_proveedor: it.precio_proveedor,
+          cantidad: Number(it.cantidad) || 1,
+          orden: i,
+        }))
+      )
+    }
 
     setSaving(false)
     if (errDias) { setError(`La cotización se guardó, pero hubo un error guardando los días: ${errDias.message}`); console.error(errDias); return }
@@ -519,6 +598,82 @@ export default function NuevaCotizacion() {
               </p>
             </SectionCard>
 
+            <SectionCard icon={Cookie} title="Pastelería (opcional)" color="orange">
+              <Checkbox label="Este evento lleva pastelería" checked={llevaPasteleria} onChange={setLlevaPasteleria} />
+
+              {llevaPasteleria && (
+                <div className="space-y-4 mt-3">
+                  <Field label="Tu margen sobre el precio de proveedor (%)">
+                    <input
+                      type="number" min="0" step="1"
+                      value={pasteleriaMarkup}
+                      onChange={(e) => setPasteleriaMarkup(Number(e.target.value))}
+                      className="input"
+                    />
+                  </Field>
+
+                  <div className="bg-paper-warm/40 border border-rule rounded p-3 text-xs text-ink-mid">
+                    <strong className="text-ink">Guía rápida:</strong> calculá ~1 pieza por persona.
+                    Para {inputs.cantidad_pax || '—'} pax podés armar, por ejemplo, 1 medialuna + 1 chipa
+                    + 1 de otra cosa por invitado, o combinar 2 de una y 1 de otra — vos decidís la mezcla
+                    con los renglones de abajo.
+                    {inputs.cantidad_pax > 0 && (
+                      <span className="block mt-1">
+                        Piezas cargadas hasta ahora: <strong>{pasteleriaPiezasTotales}</strong> de{' '}
+                        <strong>{inputs.cantidad_pax}</strong> sugeridas (1 x pax).
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    {pasteleriaItems.map((it, i) => (
+                      <div key={i} className="flex items-end gap-2 bg-paper-card border border-rule rounded p-2.5">
+                        <Field label="Producto">
+                          <select
+                            value={it.producto_id}
+                            onChange={(e) => actualizarItemPasteleria(i, 'producto_id', e.target.value)}
+                            className="input"
+                          >
+                            {productosPasteleria.map((p) => (
+                              <option key={p.id} value={p.id}>{p.nombre} — ${Number(p.precio_proveedor).toLocaleString('es-AR')}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Cantidad">
+                          <input
+                            type="number" min="1"
+                            value={it.cantidad}
+                            onChange={(e) => actualizarItemPasteleria(i, 'cantidad', e.target.value)}
+                            className="input w-24"
+                          />
+                        </Field>
+                        <div className="text-xs text-ink-mid pb-2.5 whitespace-nowrap">
+                          = ${Math.round((Number(it.cantidad) || 0) * it.precio_proveedor * (1 + pasteleriaMarkup / 100)).toLocaleString('es-AR')}
+                        </div>
+                        <button type="button" onClick={() => quitarItemPasteleria(i)} className="text-ink-light hover:text-coral pb-2.5">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={agregarItemPasteleria}
+                    disabled={productosPasteleria.length === 0}
+                    className="flex items-center gap-1.5 text-xs text-wine hover:underline disabled:opacity-40"
+                  >
+                    <Plus size={13} /> Agregar producto
+                  </button>
+
+                  <div className="flex items-center justify-between border-t border-rule pt-3">
+                    <span className="text-sm text-ink-mid">Subtotal pastelería (con tu margen)</span>
+                    <span className="font-display text-xl text-wine">${Math.round(pasteleriaSubtotal).toLocaleString('es-AR')}</span>
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+
             {error && <p className="text-coral text-sm">{error}</p>}
           </div>
 
@@ -526,7 +681,9 @@ export default function NuevaCotizacion() {
           <div className="lg:sticky lg:top-8 space-y-4">
             <div className="bg-wine text-paper rounded-lg p-6">
               <p className="text-xs uppercase tracking-wide text-peach/80 mb-1">Precio final</p>
-              <p className="font-display text-4xl mb-1">{resultado ? money(resultado.precioFinal) : '—'}</p>
+              <p className="font-display text-4xl mb-1">
+                {resultado ? money(resultado.precioFinal + (llevaPasteleria ? pasteleriaSubtotal : 0)) : '—'}
+              </p>
               <p className="text-xs text-peach/70">Sin IVA</p>
             </div>
 
@@ -550,6 +707,9 @@ export default function NuevaCotizacion() {
                   <div className="border-t border-rule pt-3">
                     <LineaResumen label="Margen" valor={`${(resultado.margenPct * 100).toFixed(1)}%`} />
                     <LineaResumen label={`IVA (${((resultado.ivaMonto / (resultado.precioNeto || 1)) * 100).toFixed(0)}%) — no sumado al total`} valor={money(resultado.ivaMonto)} />
+                    {llevaPasteleria && (
+                      <LineaResumen label="Pastelería (con tu margen)" valor={money(pasteleriaSubtotal)} bold />
+                    )}
                     <LineaResumen label="Consumo x persona" valor={money(resultado.consumoPromedioPorPersona)} />
                   </div>
                 </>
