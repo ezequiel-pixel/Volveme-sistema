@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Plus, FileText } from 'lucide-react'
+import { Plus, FileText, Eye } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -170,6 +170,12 @@ export default function Cotizaciones() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <Link
+                      to={`/cotizaciones/${cot.id}`}
+                      className="flex items-center gap-1 text-xs text-ink-mid hover:text-wine"
+                    >
+                      <Eye size={13} /> Detalle
+                    </Link>
+                    <Link
                       to={`/cotizaciones/${cot.id}/presupuesto`}
                       target="_blank"
                       className="flex items-center gap-1 text-xs text-ink-mid hover:text-wine"
@@ -184,6 +190,9 @@ export default function Cotizaciones() {
                         </button>
                         <button onClick={() => cambiarEstado(cot, 'aceptada')} className="text-xs text-wine font-medium hover:underline">
                           Aceptar → crea evento
+                        </button>
+                        <button onClick={() => recotizar(cot)} className="text-xs text-blue-dark hover:underline">
+                          Re-cotizar
                         </button>
                         <button onClick={() => cambiarEstado(cot, 'cancelada')} className="text-xs text-coral hover:underline">
                           Cancelar
@@ -205,7 +214,14 @@ export default function Cotizaciones() {
                       </>
                     )}
 
-                    {cot.estado === 'aceptada' && <span className="text-xs text-ink-light">Evento creado ✓</span>}
+                    {cot.estado === 'aceptada' && (
+                      <>
+                        <span className="text-xs text-ink-light">Evento creado ✓</span>
+                        <button onClick={() => recotizar(cot)} className="text-xs text-blue-dark hover:underline">
+                          Re-cotizar
+                        </button>
+                      </>
+                    )}
                     {cot.estado === 'cancelada' && (
                       <button onClick={() => recotizar(cot)} className="text-xs text-blue-dark hover:underline">
                         Re-cotizar
