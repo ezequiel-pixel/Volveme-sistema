@@ -5,7 +5,7 @@ import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
 import {
   Printer, ArrowLeft, MessageCircle, Loader2,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
-  CalendarDays, MapPin, Clock, Users, Timer, Cookie,
+  CalendarDays, MapPin, Clock, Users, Timer, Cookie, Award, Sprout,
 } from 'lucide-react'
 
 const money = (n) =>
@@ -42,6 +42,7 @@ export default function Presupuesto() {
   const [cotizacion, setCotizacion] = useState(null)
   const [dias, setDias] = useState([])
   const [pasteleriaItems, setPasteleriaItems] = useState([])
+  const [cafeDelMes, setCafeDelMes] = useState(null)
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [envioError, setEnvioError] = useState('')
@@ -71,6 +72,18 @@ export default function Presupuesto() {
           .order('orden')
         setPasteleriaItems(itemsData || [])
       }
+
+      // Ficha técnica del café del mes — se carga una sola vez desde el
+      // módulo "Café del mes" (no se vuelve a cargar por cada presupuesto).
+      // Si todavía no hay ninguno activo, la página simplemente no se muestra.
+      const { data: cafeData } = await supabase
+        .from('cafe_del_mes')
+        .select('*')
+        .eq('activo', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      setCafeDelMes(cafeData || null)
 
       setLoading(false)
     }
@@ -296,6 +309,132 @@ export default function Presupuesto() {
 
           <p className="relative text-center font-display text-3xl text-wine pb-8">volveme<sup className="text-base">®</sup></p>
         </section>
+
+        {/* ============ PÁGINA 3B — QUÉ ES EL CAFÉ DE ESPECIALIDAD ============ */}
+        <section className="pres-page flex flex-col bg-paper relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none opacity-[0.035] flex items-start justify-end pt-6 pr-6">
+            <Award size={220} strokeWidth={0.6} className="text-wine" />
+          </div>
+
+          <div className="flex-1 flex flex-col px-14 pt-14">
+            <h2 className="font-display text-5xl text-center text-wine mb-6">Café de especialidad</h2>
+
+            <p className="text-center text-base text-ink-mid px-4 mb-4 leading-relaxed max-w-[560px] mx-auto">
+              Se llama así al café que obtiene <strong className="text-ink">80 puntos o más sobre 100</strong> en
+              una cata evaluada por catadores certificados, siguiendo la escala de la Specialty Coffee
+              Association (SCA). Se mide aroma, sabor, cuerpo, acidez, dulzor, uniformidad y ausencia de
+              defectos — grano por grano, taza por taza.
+            </p>
+            <p className="text-center text-base text-ink-mid px-4 mb-10 leading-relaxed max-w-[560px] mx-auto">
+              Cada lote tiene <strong className="text-ink">trazabilidad completa</strong>: se sabe de qué finca
+              salió, quién lo cultivó, a qué altura, con qué variedad y con qué proceso se benefició. Eso es lo
+              que nos permite elegir con criterio y no por moda.
+            </p>
+
+            <div className="max-w-[520px] mx-auto w-full">
+              <div className="flex items-center gap-2 justify-center mb-4">
+                <span className="text-xs uppercase tracking-[0.25em] font-bold text-wine bg-peach px-4 py-1.5 rounded-full">
+                  Ejemplo ilustrativo de una ficha técnica
+                </span>
+              </div>
+
+              <div className="border border-rule rounded-md p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-ink-light">Etiopía · Yirgacheffe</p>
+                    <p className="font-display text-2xl text-wine leading-tight">Heirloom, lavado</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] uppercase tracking-wide text-ink-light">Puntaje SCA</p>
+                    <p className="font-display text-2xl text-wine">86.25</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-4">
+                  <FichaBarra label="Aroma" valor={8} />
+                  <FichaBarra label="Sabor" valor={8.25} />
+                  <FichaBarra label="Acidez" valor={7.75} />
+                  <FichaBarra label="Cuerpo" valor={7.5} />
+                </div>
+                <p className="text-sm text-ink-mid leading-relaxed border-t border-rule pt-3">
+                  <strong className="text-ink">Notas de cata:</strong> jazmín, durazno, té negro. Acidez cítrica
+                  brillante, cuerpo sedoso, final largo y dulce.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p className="relative text-center font-display text-3xl text-wine pb-8 pt-6">volveme<sup className="text-base">®</sup></p>
+        </section>
+
+        {/* ============ PÁGINA 3C — EL CAFÉ DE ESTE MES (dinámica, solo si hay un café activo) ============ */}
+        {cafeDelMes && (
+          <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
+            <Watermark texto="volveme" />
+            <div
+              className="absolute -right-10 -top-10 w-40 h-56 opacity-[0.06] pointer-events-none"
+              style={{ background: '#a47864', borderRadius: '999px 999px 0 0' }}
+            />
+
+            <div className="relative flex-1 flex flex-col px-14 pt-12">
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center gap-2 bg-wine text-paper text-xs uppercase tracking-[0.2em] font-bold px-4 py-1.5 rounded-full mb-4">
+                  <Sprout size={13} /> Probado en barra este mes
+                </div>
+                <h2 className="font-display text-4xl text-wine leading-tight">{cafeDelMes.nombre_cafe}</h2>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-10 gap-y-4 max-w-[520px] mx-auto w-full mb-8">
+                <FichaDato label="Origen" valor={cafeDelMes.origen} />
+                <FichaDato label="Región" valor={cafeDelMes.region} />
+                <FichaDato label="Variedad" valor={cafeDelMes.variedad} />
+                <FichaDato label="Proceso" valor={cafeDelMes.beneficio} />
+                <FichaDato label="Finca" valor={cafeDelMes.finca} />
+                <FichaDato label="Altura" valor={cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null} />
+                <FichaDato label="Puntaje" valor={cafeDelMes.puntaje ? cafeDelMes.puntaje : null} />
+                <FichaDato label="Zafra" valor={cafeDelMes.zafra} />
+              </div>
+
+              <div className="flex items-center justify-center gap-10 mb-8">
+                <RadarChart
+                  metrics={[
+                    { label: 'General', value: cafeDelMes.general },
+                    { label: 'Fragancia', value: cafeDelMes.fragancia_aroma },
+                    { label: 'Sabor', value: cafeDelMes.sabor },
+                    { label: 'Acidez', value: cafeDelMes.acidez },
+                    { label: 'Cuerpo', value: cafeDelMes.cuerpo },
+                    { label: 'Balance', value: cafeDelMes.balance },
+                    { label: 'Retrogusto', value: cafeDelMes.retrogusto },
+                  ]}
+                />
+                {cafeDelMes.notas_sabor_tags?.length > 0 && (
+                  <div className="max-w-[220px]">
+                    <p className="text-[11px] uppercase tracking-wide text-ink-mid mb-2">Notas de sabor</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {cafeDelMes.notas_sabor_tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-xs font-medium text-wine bg-paper border border-orange/30 rounded-full px-3 py-1"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {cafeDelMes.notas_cata && (
+                <p className="relative text-center text-sm text-ink-mid leading-relaxed max-w-[520px] mx-auto mb-6">
+                  {cafeDelMes.notas_cata}
+                </p>
+              )}
+            </div>
+
+            <p className="relative text-center font-display text-2xl text-wine pb-8">
+              Probado en barra. <em className="font-accent text-orange not-italic">Listo para tu casa.</em>
+            </p>
+          </section>
+        )}
 
         {/* ============ PÁGINA 4 — NUESTRAS PREPARACIONES ============ */}
         <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
@@ -645,6 +784,86 @@ function Condicion({ texto }) {
     <p className="text-base text-ink-mid text-center leading-relaxed max-w-[480px] mx-auto">
       {texto}
     </p>
+  )
+}
+
+function FichaBarra({ label, valor }) {
+  const max = 10
+  const pct = Math.max(0, Math.min(100, ((valor || 0) / max) * 100))
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-ink-mid">{label}</span>
+        <span className="text-xs font-bold text-wine">{valor}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-peach overflow-hidden">
+        <div className="h-full bg-orange rounded-full" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function FichaDato({ label, valor }) {
+  if (!valor) return null
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-ink-mid">{label}</p>
+      <p className="text-base font-bold text-ink">{valor}</p>
+    </div>
+  )
+}
+
+/** Radar/spider chart chico en SVG puro — sin librerías, para que
+ * html2canvas lo capture igual que el resto del presupuesto. */
+function RadarChart({ metrics, size = 210, color = '#ff6a1a', trackColor = '#e3cdb8' }) {
+  const datos = metrics.filter((m) => m.value !== null && m.value !== undefined)
+  if (datos.length < 3) return null
+
+  const max = 10
+  const center = size / 2
+  const radius = size / 2 - 30
+  const n = datos.length
+  const angleStep = (Math.PI * 2) / n
+  const startAngle = -Math.PI / 2
+
+  const puntoPara = (i, valor) => {
+    const angle = startAngle + i * angleStep
+    const r = (Math.max(0, Math.min(max, valor)) / max) * radius
+    return [center + r * Math.cos(angle), center + r * Math.sin(angle)]
+  }
+
+  const anillos = [2.5, 5, 7.5, 10]
+  const puntosData = datos.map((m, i) => puntoPara(i, m.value))
+  const pathData = puntosData.map((p) => p.join(',')).join(' ')
+
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      {anillos.map((nivel) => (
+        <polygon
+          key={nivel}
+          points={datos.map((_, i) => puntoPara(i, nivel).join(',')).join(' ')}
+          fill="none"
+          stroke={trackColor}
+          strokeWidth="1"
+        />
+      ))}
+      {datos.map((_, i) => {
+        const [x, y] = puntoPara(i, max)
+        return <line key={i} x1={center} y1={center} x2={x} y2={y} stroke={trackColor} strokeWidth="1" />
+      })}
+      <polygon points={pathData} fill={color} fillOpacity="0.2" stroke={color} strokeWidth="2" />
+      {puntosData.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="3" fill={color} />
+      ))}
+      {datos.map((m, i) => {
+        const [lx, ly] = puntoPara(i, max * 1.32)
+        return (
+          <text key={m.label} x={lx} y={ly} fontSize="9.5" fill="#57534f" textAnchor="middle" dominantBaseline="middle">
+            {m.label}
+          </text>
+        )
+      })}
+    </svg>
   )
 }
 
