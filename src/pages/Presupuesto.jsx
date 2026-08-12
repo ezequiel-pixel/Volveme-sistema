@@ -281,27 +281,27 @@ export default function Presupuesto() {
           <Footer />
         </section>
 
-        {/* ============ PÁGINA 3 — CAFÉ DE ESPECIALIDAD (una sola hoja, minimalista) ============ */}
+        {/* ============ PÁGINA 3 — CAFÉ DE ESPECIALIDAD (una sola hoja, con onda) ============ */}
         <section className="pres-page flex flex-col items-center justify-center bg-peach relative overflow-hidden px-16">
           <Watermark texto="volveme" />
 
-          <div className="relative text-center max-w-[520px]">
+          <div className="relative text-center max-w-[540px]">
             <h2 className="font-display text-4xl text-wine mb-3">Café de especialidad</h2>
-            <p className="text-sm text-ink-mid leading-relaxed mb-8">
+            <p className="text-sm text-ink-mid leading-relaxed mb-7">
               Café evaluado por catadores certificados con <strong className="text-ink">80 puntos o más sobre 100</strong>,
               con trazabilidad completa de origen. Este es el que estamos sirviendo hoy en barra.
             </p>
 
             {cafeDelMes && (
-              <div className="bg-paper rounded-md px-8 py-7 mb-8">
+              <div className="bg-paper rounded-md px-8 py-6 mb-8">
                 <p className="font-display text-2xl text-wine leading-tight mb-1">{cafeDelMes.nombre_cafe}</p>
-                <p className="text-xs text-ink-light mb-5">
+                <p className="text-xs text-ink-light mb-4">
                   {[cafeDelMes.variedad, cafeDelMes.beneficio, cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null]
                     .filter(Boolean).join(' · ')}
                 </p>
 
                 {cafeDelMes.puntaje && (
-                  <p className="mb-5">
+                  <p className="mb-4">
                     <span className="inline-block bg-wine text-paper text-xs font-bold uppercase tracking-wide rounded-full px-4 py-1.5">
                       {cafeDelMes.puntaje} puntos
                     </span>
@@ -323,11 +323,11 @@ export default function Presupuesto() {
               </div>
             )}
 
-            <div className="grid grid-cols-4 gap-4 mb-8">
-              <FeatureIconoChico icon={Coffee} color="#3f6bff" texto="Café de especialidad" />
-              <FeatureIconoChico icon={Heart} color="#fd926f" texto="Experiencia y calidad" />
-              <FeatureIconoChico icon={Snowflake} color="#b7ddff" texto="Bebidas para cada momento" />
-              <FeatureIconoChico icon={Leaf} color="#8c5a45" texto="Alternativas vegetales" />
+            <div className="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
+              <FeatureIconoChico icon={Coffee} color="#3f6bff" titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
+              <FeatureIconoChico icon={Heart} color="#fd926f" titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
+              <FeatureIconoChico icon={Snowflake} color="#b7ddff" titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
+              <FeatureIconoChico icon={Leaf} color="#8c5a45" titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
             </div>
 
             <p className="font-display text-xl text-wine">
@@ -594,17 +594,18 @@ function DashedRule() {
   return <div className="mx-10 border-t-2 border-dashed border-orange/40" />
 }
 
-function FeatureIconoChico({ icon: Icon, texto, color }) {
+function FeatureIconoChico({ icon: Icon, titulo, texto, color }) {
   return (
     <div className="text-center">
-      <div className="relative w-11 h-11 mx-auto mb-2 flex items-center justify-center">
+      <div className="relative w-14 h-14 mx-auto mb-3 flex items-center justify-center">
         <span
-          className="absolute w-7 h-7 rounded-full"
-          style={{ backgroundColor: color || '#ff6a1a', opacity: 0.5, top: -2, right: -2 }}
+          className="absolute w-9 h-9 rounded-full"
+          style={{ backgroundColor: color || '#ff6a1a', opacity: 0.55, top: -3, right: -3 }}
         />
-        <Icon size={22} strokeWidth={1.5} className="relative text-ink" />
+        <Icon size={28} strokeWidth={1.4} className="relative text-ink" />
       </div>
-      <p className="text-[11px] font-bold text-ink leading-snug">{texto}</p>
+      <p className="text-sm font-bold text-ink mb-0.5">{titulo}</p>
+      <p className="text-xs text-ink-mid leading-snug">{texto}</p>
     </div>
   )
 }
