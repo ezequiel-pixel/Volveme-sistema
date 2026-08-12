@@ -5,7 +5,7 @@ import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
 import {
   Printer, ArrowLeft, MessageCircle, Loader2,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
-  CalendarDays, MapPin, Clock, Users, Timer,
+  CalendarDays, MapPin, Clock, Users, Timer, Cookie,
 } from 'lucide-react'
 
 const money = (n) =>
@@ -39,6 +39,7 @@ export default function Presupuesto() {
   const { id } = useParams()
   const [cotizacion, setCotizacion] = useState(null)
   const [dias, setDias] = useState([])
+  const [pasteleriaItems, setPasteleriaItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [envioError, setEnvioError] = useState('')
@@ -59,6 +60,16 @@ export default function Presupuesto() {
 
       setCotizacion(cot)
       setDias(diasData || [])
+
+      if (cot?.lleva_pasteleria) {
+        const { data: itemsData } = await supabase
+          .from('cotizacion_pasteleria_items')
+          .select('*')
+          .eq('cotizacion_id', id)
+          .order('orden')
+        setPasteleriaItems(itemsData || [])
+      }
+
       setLoading(false)
     }
     cargar()
@@ -399,6 +410,62 @@ export default function Presupuesto() {
           </div>
           <p className="text-center font-display text-2xl text-wine pb-6">volveme<sup className="text-sm">®</sup></p>
         </section>
+
+        {/* ============ PÁGINA EXTRA — ANEXO PASTELERÍA (solo si aplica) ============ */}
+        {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 && (
+          <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
+            <Watermark texto="volveme" />
+            {/* acento decorativo de marca — forma de arco, ver manual pág. 31 */}
+            <div
+              className="absolute -right-10 -top-10 w-40 h-56 opacity-[0.06] pointer-events-none"
+              style={{ background: '#a47864', borderRadius: '999px 999px 0 0' }}
+            />
+
+            <div className="flex-1 flex flex-col justify-center px-16">
+              <div className="relative text-center mb-10">
+                <IconoConCirculo icon={Cookie} color="#ff6a1a" />
+                <h2 className="font-display text-4xl text-wine mb-2">Anexo — Pastelería</h2>
+                <p className="text-sm text-ink-mid">Selección para tu evento</p>
+              </div>
+
+              <div className="relative max-w-[520px] mx-auto w-full">
+                <div className="space-y-4 mb-8">
+                  {pasteleriaItems.map((it, i) => {
+                    const precioUnitario = it.precio_proveedor * (1 + (cotizacion.pasteleria_markup_pct || 0))
+                    const subtotalItem = precioUnitario * it.cantidad
+                    const colores = ['#3f6bff', '#8c5a45', '#b7ddff', '#fd926f', '#a47864']
+                    return (
+                      <div key={it.id} className="flex items-center gap-4 border-b border-orange/20 pb-4">
+                        <div className="flex-shrink-0">
+                          <div className="relative w-11 h-11 flex items-center justify-center">
+                            <span
+                              className="absolute w-7 h-7 rounded-full"
+                              style={{ backgroundColor: colores[i % colores.length], opacity: 0.55, top: -2, right: -2 }}
+                            />
+                            <Cookie size={22} strokeWidth={1.5} className="relative text-ink" />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-base font-bold text-ink">{it.nombre_producto}</p>
+                          <p className="text-xs text-ink-light">
+                            {it.cantidad} × {money(precioUnitario)}
+                          </p>
+                        </div>
+                        <p className="text-base font-bold text-wine">{money(subtotalItem)}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="bg-paper rounded-md p-6 text-center">
+                  <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Total pastelería</p>
+                  <p className="font-display text-4xl text-wine">{money(cotizacion.pasteleria_subtotal)}</p>
+                </div>
+              </div>
+            </div>
+            <Footer />
+          </section>
+        )}
 
         {/* ============ PÁGINA 7 — CIERRE ============ */}
         <section className="pres-page flex flex-col items-center justify-center bg-peach text-center px-16">
