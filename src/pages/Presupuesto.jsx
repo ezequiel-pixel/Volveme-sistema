@@ -801,27 +801,11 @@ export default function Presupuesto() {
         <section className="pres-page flex flex-col bg-paper">
           <div className="flex-1 flex flex-col justify-center px-10">
             <h2 className="font-display text-4xl text-center text-wine mb-10">Así vivimos nuestros eventos</h2>
-            {/* Grid 6 / 2-2-2 — sin galeria-7 (resolución muy baja, se
-                veía pixelada al mostrarla grande). Fila 1: foto ancha.
-                Fila 2 y 3: tres fotos parejas por fila. */}
-            <div className="grid grid-cols-6 gap-3">
-              {[
-                { img: 'galeria-1', span: 6 },
-                { img: 'galeria-4', span: 2 },
-                { img: 'galeria-2', span: 2 },
-                { img: 'galeria-3', span: 2 },
-                { img: 'galeria-6', span: 3 },
-                { img: 'galeria-5', span: 3 },
-              ].map(({ img, span }) => (
-                <img
-                  key={img}
-                  src={`/images/${img}.jpg`}
-                  alt=""
-                  className="w-full object-cover rounded-sm"
-                  style={{ height: '175px', gridColumn: `span ${span} / span ${span}` }}
-                />
-              ))}
-            </div>
+            {/* Una sola imagen ya armada (el collage de las 7 fotos viene
+                compuesto de antes, no con una grilla de CSS) — así no
+                depende de que el motor del PDF calcule bien ningún
+                recorte ni tamaño, cero riesgo de que salga distinto. */}
+            <img src="/images/collage-desktop.jpg" alt="" className="w-full h-auto block rounded-sm" />
           </div>
           <p className="text-center font-display text-2xl text-wine pb-6">volveme<sup className="text-sm">®</sup></p>
         </section>
