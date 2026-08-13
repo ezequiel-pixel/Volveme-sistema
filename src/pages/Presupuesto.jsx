@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generarPdfBlob, generarPdfMobileBlob } from '../lib/generarPdf'
+import { generarPdfBlob, generarPdfMobileBlob, armarLinkWhatsapp } from '../lib/generarPdf'
 import {
-  Printer, ArrowLeft, Loader2, Smartphone,
+  ArrowLeft, Loader2, Smartphone, MessageCircle,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
   CalendarDays, MapPin, Clock, Users, Timer, Cookie,
 } from 'lucide-react'
@@ -125,8 +125,45 @@ export default function Presupuesto() {
     return () => { document.title = 'Volveme' }
   }, [cotizacion, dias])
 
-  /** Dispara la descarga de un blob ya generado — usado por los dos
-   * botones (desktop y mobile) para no repetir la lógica del link. */
+  /** Intenta mandar el PDF YA ADJUNTO por WhatsApp usando la Web Share
+   * API (funciona en celular — Chrome Android, Safari iOS — y en algunas
+   * compus con Windows/Mac configurados). Ahí el sistema abre el selector
+   * nativo de "compartir", elegís WhatsApp, y WHATSAPP TE DEJA ELEGIR EL
+   * CONTACTO con el archivo ya puesto — son 2 toques, no hay forma de
+   * saltarse ese paso desde una web (no es un límite de este sistema,
+   * es una restricción de WhatsApp).
+   *
+   * Si el navegador no soporta compartir archivos (la mayoría de las
+   * compus de escritorio), hace el mejor plan B posible: descarga el PDF
+   * Y abre directo el chat del cliente en WhatsApp — así solo falta
+   * apretar el clip 📎 y adjuntar el archivo que ya está en Descargas.
+   */
+  async function enviarPorWhatsapp(blob, nombreArchivo, mensajeTexto) {
+    const telefono = cotizacion.clientes?.telefono
+    const file = new File([blob], nombreArchivo, { type: 'application/pdf' })
+
+    const puedeCompartirArchivo =
+      typeof navigator.share === 'function' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [file] })
+
+    if (puedeCompartirArchivo) {
+      try {
+        await navigator.share({ files: [file], title: nombreArchivo, text: mensajeTexto })
+        return
+      } catch (err) {
+        if (err?.name === 'AbortError') return // el usuario cerró el selector, no es error
+        // si falla por otro motivo, cae al plan B de abajo
+      }
+    }
+
+    // Plan B: descarga + abre el chat del cliente en WhatsApp
+    descargarBlob(blob, nombreArchivo)
+    const link = armarLinkWhatsapp(telefono, mensajeTexto)
+    window.open(link, '_blank')
+  }
+
+  /** Dispara la descarga de un blob ya generado. */
   function descargarBlob(blob, nombreArchivo) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -138,14 +175,11 @@ export default function Presupuesto() {
     URL.revokeObjectURL(url)
   }
 
-  /** Descarga el PDF completo (8 hojas A4) directo al dispositivo, usando
-   * html2canvas + jsPDF en vez de window.print() — window.print()/
-   * "Guardar como PDF" del navegador depende de cómo cada navegador
-   * interpreta el CSS de impresión, y en mobile es poco confiable (salían
-   * páginas cortadas, huecos en blanco y sin color de fondo). Este camino
-   * es siempre el mismo motor, así que el resultado es idéntico sin
-   * importar el dispositivo. */
-  async function handleDescargarDesktop() {
+  /** PDF completo (8 hojas A4) — genera con html2canvas + jsPDF (no
+   * window.print(), que en mobile sale con páginas cortadas y sin
+   * color) y lo manda por WhatsApp, adjunto si el dispositivo lo
+   * permite. */
+  async function handleWhatsappDesktop() {
     setDescargando(true)
     setEnvioError('')
     try {
@@ -157,7 +191,10 @@ export default function Presupuesto() {
         primerDia?.fecha,
         cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
       ].filter(Boolean).join('-') + '.pdf'
-      descargarBlob(blob, nombreArchivo)
+      const mensaje =
+        `¡Hola ${cotizacion.clientes?.nombre || ''}! Te paso el presupuesto de Volveme para tu evento` +
+        `${primerDia ? ` del ${formatFecha(primerDia.fecha)}` : ''}. Cualquier consulta quedo atento. ¡Gracias!`
+      await enviarPorWhatsapp(blob, nombreArchivo, mensaje)
     } catch (err) {
       setEnvioError('No se pudo generar el PDF. Probá de nuevo.')
       console.error(err)
@@ -165,12 +202,12 @@ export default function Presupuesto() {
     setDescargando(false)
   }
 
-  /** Igual que handleDescargarDesktop, pero genera la versión angosta
-   * tipo celular (una sola tira, con el mismo diseño de marca) en vez de
-   * las 8 hojas A4. Funciona aunque quien lo genera esté en la
-   * computadora — la vista mobile queda siempre lista para capturar
-   * (ver esMobile / estiloOculto más arriba). */
-  async function handleDescargarMobile() {
+  /** Igual que handleWhatsappDesktop, pero genera la versión angosta tipo
+   * celular (una sola tira, con el mismo diseño de marca) en vez de las
+   * 8 hojas A4. Funciona aunque quien lo genera esté en la computadora —
+   * la vista mobile queda siempre lista para capturar (ver esMobile /
+   * estiloOculto más arriba). */
+  async function handleWhatsappMobile() {
     setEnviandoMobile(true)
     setEnvioError('')
     try {
@@ -182,7 +219,10 @@ export default function Presupuesto() {
         primerDia?.fecha,
         cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
       ].filter(Boolean).join('-') + '.pdf'
-      descargarBlob(blob, nombreArchivo)
+      const mensaje =
+        `¡Hola ${cotizacion.clientes?.nombre || ''}! Te paso el presupuesto de Volveme para tu evento` +
+        `${primerDia ? ` del ${formatFecha(primerDia.fecha)}` : ''}. Cualquier consulta quedo atento. ¡Gracias!`
+      await enviarPorWhatsapp(blob, nombreArchivo, mensaje)
     } catch (err) {
       setEnvioError('No se pudo generar la versión mobile. Probá de nuevo.')
       console.error(err)
@@ -211,21 +251,24 @@ export default function Presupuesto() {
         </Link>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {envioError && <span className="text-xs text-coral w-full sm:w-auto text-right">{envioError}</span>}
+          {!cotizacion.clientes?.telefono && (
+            <span className="text-xs text-ink-light">Sin teléfono cargado — se va a descargar en vez de abrir WhatsApp</span>
+          )}
           <button
-            onClick={handleDescargarDesktop}
+            onClick={handleWhatsappDesktop}
             disabled={descargando}
             className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-3 sm:px-4 py-2 hover:border-ink hover:text-ink transition-colors disabled:opacity-50"
           >
-            {descargando ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
-            <span>{descargando ? 'Generando…' : 'Descargar (Desktop)'}</span>
+            {descargando ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}
+            <span>{descargando ? 'Generando…' : 'WhatsApp (Desktop)'}</span>
           </button>
           <button
-            onClick={handleDescargarMobile}
+            onClick={handleWhatsappMobile}
             disabled={enviandoMobile}
             className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-3 sm:px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
           >
             {enviandoMobile ? <Loader2 size={15} className="animate-spin" /> : <Smartphone size={15} />}
-            <span>{enviandoMobile ? 'Generando…' : 'Descargar (Mobile)'}</span>
+            <span>{enviandoMobile ? 'Generando…' : 'WhatsApp (Mobile)'}</span>
           </button>
         </div>
       </div>
@@ -242,8 +285,8 @@ export default function Presupuesto() {
         style={esMobile ? { width: '100%' } : { ...estiloOculto, width: 420 }}
       >
         {/* Portada */}
-        <div className="relative w-full aspect-[4/3]">
-          <img src="/images/portada.jpg" alt="" className="w-full h-full object-cover block" />
+        <div className="relative w-full aspect-[4/3] overflow-hidden">
+          <ImgCover src="/images/portada.jpg" />
         </div>
         <div className="text-center pt-8 pb-6 px-6 bg-paper">
           <p className="font-display text-4xl text-wine mb-1">volveme<sup className="text-sm align-super">®</sup></p>
@@ -436,8 +479,8 @@ export default function Presupuesto() {
             Ya sea una boda, una fiesta o una reunión empresarial, Volveme lleva la barra a tu evento.
           </p>
 
-          <div className="mx-10 rounded-sm overflow-hidden" style={{ height: '320px' }}>
-            <img src="/images/portada.jpg" alt="" className="w-full h-full object-cover block" />
+          <div className="mx-10 rounded-sm overflow-hidden relative" style={{ height: '320px' }}>
+            <ImgCover src="/images/portada.jpg" />
           </div>
 
           <div className="bg-peach text-center py-10 px-10 mt-6 flex-1 flex flex-col justify-center">
@@ -520,7 +563,7 @@ export default function Presupuesto() {
           <DashedRule />
 
           <div className="relative flex-1 mx-10 mt-8 rounded-sm overflow-hidden" style={{ minHeight: '260px' }}>
-            <img src="/images/evento-detalle.jpg" alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <ImgCover src="/images/evento-detalle.jpg" />
             <p className="absolute bottom-4 right-5 font-display text-xl text-paper drop-shadow">
               volveme<sup className="text-xs">®</sup>
             </p>
@@ -795,13 +838,13 @@ export default function Presupuesto() {
                 { img: 'galeria-6', span: 3 },
                 { img: 'galeria-5', span: 3 },
               ].map(({ img, span }) => (
-                <img
+                <div
                   key={img}
-                  src={`/images/${img}.jpg`}
-                  alt=""
-                  className="w-full object-cover rounded-sm"
+                  className="relative overflow-hidden rounded-sm"
                   style={{ height: '175px', gridColumn: `span ${span} / span ${span}` }}
-                />
+                >
+                  <ImgCover src={`/images/${img}.jpg`} />
+                </div>
               ))}
             </div>
           </div>
@@ -835,6 +878,31 @@ function Watermark({ texto }) {
     >
       {texto}
     </p>
+  )
+}
+
+/** Reemplazo de `object-cover` que sí funciona bien con html2canvas.
+ * html2canvas no soporta correctamente la propiedad CSS object-fit — el
+ * resultado sale con la imagen estirada en vez de recortada (eso era la
+ * "cara estirada" del PDF mobile). Esta técnica logra el mismo recorte
+ * centrado usando solo tamaño y posición absoluta, que html2canvas sí
+ * calcula bien. El contenedor (el padre de este componente) necesita
+ * `position: relative` (o `relative` de Tailwind) y `overflow: hidden`
+ * con una altura definida. */
+function ImgCover({ src }) {
+  return (
+    <img
+      src={src}
+      alt=""
+      className="absolute top-1/2 left-1/2 max-w-none"
+      style={{
+        minWidth: '100%',
+        minHeight: '100%',
+        width: 'auto',
+        height: 'auto',
+        transform: 'translate(-50%, -50%)',
+      }}
+    />
   )
 }
 
