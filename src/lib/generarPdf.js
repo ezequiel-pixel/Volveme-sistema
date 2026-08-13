@@ -15,12 +15,54 @@ export async function generarPdfBlob(containerEl) {
   for (let i = 0; i < paginas.length; i++) {
     // scale 3 + PNG (sin pérdida) — antes era scale:2 + JPEG 0.92, que
     // se notaba pixelado sobre todo en la foto de portada.
-    const canvas = await html2canvas(paginas[i], { scale: 3, useCORS: true, backgroundColor: '#ffffff' })
+    // windowWidth fuerza SIEMPRE un ancho de escritorio (1200px) para
+    // renderizar, sin importar si quien genera el PDF está en el
+    // celular. Es clave: sin esto, en pantallas angostas (<768px) se
+    // dispara la regla CSS que oculta ".presupuesto" fuera de pantalla
+    // también DENTRO de la captura, y el resultado sale con páginas
+    // cortadas, huecos en blanco y sin color de fondo.
+    const canvas = await html2canvas(paginas[i], {
+      scale: 3,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      windowWidth: 1200,
+      windowHeight: 1600,
+    })
     const imgData = canvas.toDataURL('image/png')
 
     if (i > 0) pdf.addPage()
     pdf.addImage(imgData, 'PNG', 0, 0, anchoPagina, altoPagina)
   }
+
+  return pdf.output('blob')
+}
+
+/**
+ * Versión "mobile" del PDF: en vez de las 8 hojas A4, captura la vista
+ * resumida de una sola columna (la misma que se ve en pantalla en el
+ * celular) y arma un PDF angosto, tipo teléfono, con letra grande —
+ * pensado para mandarlo a alguien que lo va a abrir en su celular,
+ * aunque quien lo genere esté en la compu. Es UNA sola página larga en
+ * vez de 8 hojas A4, así no hay que estar pasando de página en el
+ * visor de WhatsApp.
+ */
+export async function generarPdfMobileBlob(el) {
+  // windowWidth fuerza el ancho de renderizado tipo celular incluso si
+  // quien genera el PDF está en una pantalla de escritorio grande —
+  // así el resultado es igual sin importar desde qué dispositivo se manda.
+  const canvas = await html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    windowWidth: 420,
+  })
+
+  const anchoMM = 100 // ancho tipo celular — letra grande relativa a la página
+  const altoMM = (canvas.height / canvas.width) * anchoMM
+
+  const pdf = new jsPDF({ unit: 'mm', format: [anchoMM, altoMM], orientation: 'portrait' })
+  const imgData = canvas.toDataURL('image/png')
+  pdf.addImage(imgData, 'PNG', 0, 0, anchoMM, altoMM)
 
   return pdf.output('blob')
 }
