@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
+import { generarPdfBlob, generarPdfMobileBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
 import {
-  Printer, ArrowLeft, MessageCircle, Loader2,
+  Printer, ArrowLeft, MessageCircle, Loader2, Smartphone,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
   CalendarDays, MapPin, Clock, Users, Timer, Cookie,
 } from 'lucide-react'
@@ -45,8 +45,11 @@ export default function Presupuesto() {
   const [cafeDelMes, setCafeDelMes] = useState(null)
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [enviandoMobile, setEnviandoMobile] = useState(false)
+  const [descargando, setDescargando] = useState(false)
   const [envioError, setEnvioError] = useState('')
   const contenidoRef = useRef(null)
+  const mobileVistaRef = useRef(null)
 
   useEffect(() => {
     async function cargar() {
@@ -103,6 +106,42 @@ export default function Presupuesto() {
     return () => { document.title = 'Volveme' }
   }, [cotizacion, dias])
 
+  /** Descarga el PDF completo (8 hojas) directo al dispositivo, usando el
+   * mismo motor que "Enviar por WhatsApp" (html2canvas + jsPDF) en vez
+   * de window.print(). window.print()/"Guardar como PDF" del navegador
+   * depende de cómo cada navegador interpreta el CSS de impresión, y en
+   * mobile es poco confiable — salen páginas cortadas, huecos en blanco
+   * y sin color de fondo. Este camino es el mismo que ya funciona bien
+   * para WhatsApp, así que el resultado es idéntico en cualquier
+   * dispositivo. */
+  async function handleDescargarPdf() {
+    setDescargando(true)
+    setEnvioError('')
+    try {
+      const blob = await generarPdfBlob(contenidoRef.current)
+      const primerDia = dias[0]
+      const nombreArchivo = [
+        'presupuesto-volveme',
+        slug(cotizacion.clientes?.nombre),
+        primerDia?.fecha,
+        cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
+      ].filter(Boolean).join('-') + '.pdf'
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = nombreArchivo
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setEnvioError('No se pudo generar el PDF. Probá de nuevo.')
+      console.error(err)
+    }
+    setDescargando(false)
+  }
+
   async function handleEnviarWhatsapp() {
     setEnviando(true)
     setEnvioError('')
@@ -132,6 +171,39 @@ export default function Presupuesto() {
     setEnviando(false)
   }
 
+  /** Igual que handleEnviarWhatsapp, pero genera la versión angosta tipo
+   * celular (una sola tira legible) en vez de las 8 hojas A4. Funciona
+   * aunque quien lo genera esté en la computadora — la vista mobile
+   * queda siempre lista para capturar (ver .mobile-vista en index.css). */
+  async function handleEnviarWhatsappMobile() {
+    setEnviandoMobile(true)
+    setEnvioError('')
+    try {
+      const blob = await generarPdfMobileBlob(mobileVistaRef.current)
+      const primerDia = dias[0]
+      const nombreArchivo = [
+        'presupuesto-volveme-mobile',
+        slug(cotizacion.clientes?.nombre),
+        primerDia?.fecha,
+        cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
+      ].filter(Boolean).join('-') + '.pdf'
+
+      const url = await subirPdf(blob, nombreArchivo)
+
+      const mensaje =
+        `¡Hola ${cotizacion.clientes?.nombre || ''}! Te paso el presupuesto de Volveme para tu evento` +
+        `${primerDia ? ` del ${formatFecha(primerDia.fecha)}` : ''}:\n\n${url}\n\n` +
+        `Cualquier consulta quedo atento. ¡Gracias!`
+
+      const link = armarLinkWhatsapp(cotizacion.clientes?.telefono, mensaje)
+      window.open(link, '_blank')
+    } catch (err) {
+      setEnvioError('No se pudo generar la versión mobile. Probá de nuevo.')
+      console.error(err)
+    }
+    setEnviandoMobile(false)
+  }
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-ink-light text-sm">Cargando…</div>
   }
@@ -157,10 +229,21 @@ export default function Presupuesto() {
             <span className="text-xs text-ink-light">Sin teléfono cargado</span>
           )}
           <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-3 sm:px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+            onClick={handleDescargarPdf}
+            disabled={descargando}
+            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-3 sm:px-4 py-2 hover:border-ink hover:text-ink transition-colors disabled:opacity-50"
           >
-            <Printer size={15} /> <span className="hidden sm:inline">Imprimir / Guardar</span>
+            {descargando ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
+            <span className="hidden sm:inline">{descargando ? 'Generando…' : 'Descargar PDF'}</span>
+          </button>
+          <button
+            onClick={handleEnviarWhatsappMobile}
+            disabled={enviandoMobile}
+            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-3 sm:px-4 py-2 hover:border-ink hover:text-ink transition-colors disabled:opacity-50"
+            title="Manda una versión angosta y con letra grande, pensada para leerse en el celular del cliente"
+          >
+            {enviandoMobile ? <Loader2 size={15} className="animate-spin" /> : <Smartphone size={15} />}
+            <span className="hidden sm:inline">{enviandoMobile ? 'Generando…' : 'Versión mobile'}</span>
           </button>
           <button
             onClick={handleEnviarWhatsapp}
@@ -178,7 +261,7 @@ export default function Presupuesto() {
           El PDF real (botones de arriba) siempre sale del bloque de abajo, con el
           tamaño A4 exacto — esto es nada más una versión legible en pantalla chica,
           no se imprime ni se manda, es para revisar antes de enviar. */}
-      <div className="mobile-vista md:hidden print:hidden bg-paper">
+      <div ref={mobileVistaRef} className="mobile-vista print:hidden bg-paper">
         <div className="text-center pt-10 pb-6 px-6 border-b border-rule">
           <p className="font-display text-4xl text-wine mb-1">volveme<sup className="text-sm align-super">®</sup></p>
           <p className="text-[11px] tracking-[0.15em] uppercase text-ink font-semibold">
