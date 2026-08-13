@@ -107,7 +107,7 @@ export default function EventoDetalle() {
         <ArrowLeft size={15} /> Volver a Eventos
       </Link>
 
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-8">
         <div>
           <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Ficha de evento</p>
           <h1 className="font-display text-3xl mb-2">{evento.nombre}</h1>
@@ -117,7 +117,7 @@ export default function EventoDetalle() {
           <Link
             to={`/cotizaciones/${evento.cotizacion_id}/presupuesto`}
             target="_blank"
-            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+            className="flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors flex-shrink-0"
           >
             <FileText size={15} /> Ver presupuesto
           </Link>
@@ -129,7 +129,7 @@ export default function EventoDetalle() {
           {/* Datos generales */}
           <div className="border border-rule rounded-lg p-5 bg-paper-card">
             <p className="text-xs uppercase tracking-wide text-ink-light mb-4">Datos generales</p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoItem icon={Users} label="Cliente" valor={evento.clientes?.nombre || '—'} />
               <InfoItem icon={Users} label="Invitados (Pax)" valor={evento.cantidad_personas || '—'} />
               <InfoItem icon={MapPin} label="Ubicación" valor={evento.lugar || '—'} />
@@ -168,7 +168,7 @@ export default function EventoDetalle() {
               <p className="text-xs uppercase tracking-wide text-ink-light mb-4 flex items-center gap-1.5">
                 <Coffee size={13} /> Insumos necesarios (cantidad exacta)
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <InsumoLinea label="Café" valor={`${resultado.kilosCafeTotal.toFixed(2)} kg`} sub={`${Math.round(resultado.gramosCafeTotal)} g totales`} />
                 <InsumoLinea label="Leche" valor={`${resultado.litrosLecheTotal.toFixed(2)} L`} />
                 <InsumoLinea label="Agua" valor={`${resultado.litrosAguaTotal.toFixed(2)} L`} />
@@ -195,7 +195,7 @@ export default function EventoDetalle() {
               <p className="text-xs uppercase tracking-wide text-ink-light mb-4 flex items-center gap-1.5">
                 <Truck size={13} /> Equipo y logística
               </p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
                 <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
                 <InfoItem label="Máquina extra" valor={cotizacion.alquiler_maquina_extra ? 'Sí' : 'No'} />

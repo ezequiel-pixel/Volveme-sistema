@@ -763,7 +763,7 @@ function SectionCard({ icon: Icon, title, badge, color, children }) {
 }
 
 function Row({ children }) {
-  return <div className="grid grid-cols-2 gap-3">{children}</div>
+  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>
 }
 function Field({ label, required, children }) {
   return (

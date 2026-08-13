@@ -36,14 +36,14 @@ export default function Eventos() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Módulo Eventos</p>
           <h1 className="font-display text-2xl">Agenda</h1>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+          className="flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors flex-shrink-0"
         >
           <Plus size={15} /> Excepción manual
         </button>
@@ -54,12 +54,12 @@ export default function Eventos() {
         Usá "Excepción manual" solo si necesitás cargar algo sin pasar antes por una cotización.
       </p>
 
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {['todos', 'lead', 'cotizado', 'confirmado', 'realizado', 'cancelado'].map((f) => (
           <button
             key={f}
             onClick={() => setFiltro(f)}
-            className={`text-xs uppercase tracking-wide px-3 py-1.5 rounded-full border transition-colors ${
+            className={`flex-shrink-0 whitespace-nowrap text-xs uppercase tracking-wide px-3 py-1.5 rounded-full border transition-colors ${
               filtro === f
                 ? 'border-ink bg-wine text-paper'
                 : 'border-rule text-ink-light hover:text-ink'
@@ -70,73 +70,110 @@ export default function Eventos() {
         ))}
       </div>
 
-      <div className="border border-rule rounded-lg overflow-hidden bg-paper-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-rule text-left text-xs uppercase tracking-wide text-ink-light">
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Evento</th>
-              <th className="px-4 py-3 font-medium">Cliente</th>
-              <th className="px-4 py-3 font-medium">Lugar</th>
-              <th className="px-4 py-3 font-medium">Pax</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-ink-light">
-                  Cargando…
-                </td>
-              </tr>
-            )}
-            {!loading && eventosFiltrados.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-ink-light">
-                  No hay eventos {filtro !== 'todos' ? `en estado "${filtro}"` : 'cargados todavía'}.
-                </td>
-              </tr>
-            )}
+      {loading && <p className="text-sm text-ink-light py-8 text-center">Cargando…</p>}
+
+      {!loading && eventosFiltrados.length === 0 && (
+        <p className="text-sm text-ink-light py-8 text-center border border-rule rounded-lg bg-paper-card">
+          No hay eventos {filtro !== 'todos' ? `en estado "${filtro}"` : 'cargados todavía'}.
+        </p>
+      )}
+
+      {!loading && eventosFiltrados.length > 0 && (
+        <>
+          {/* ===== Mobile: tarjetas apiladas ===== */}
+          <div className="sm:hidden space-y-3">
             {eventosFiltrados.map((ev) => (
-              <tr
+              <div
                 key={ev.id}
                 onClick={() => (window.location.href = `/eventos/${ev.id}`)}
-                className="border-b border-rule last:border-0 hover:bg-paper-warm/40 cursor-pointer"
+                className="border border-rule rounded-lg bg-paper-card p-4 cursor-pointer hover:bg-paper-warm/40"
               >
-                <td className="px-4 py-3">
-                  {new Date(ev.fecha + 'T00:00:00').toLocaleDateString('es-AR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                  })}
-                  {ev.hora_inicio && <span className="text-ink-light ml-1.5">{ev.hora_inicio.slice(0, 5)}</span>}
-                  {ev.evento_dias?.length > 1 && (
-                    <span className="ml-1.5 text-[10px] uppercase tracking-wide text-blue-dark bg-blue-light rounded-full px-1.5 py-0.5">
-                      {ev.evento_dias.length} días
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 font-medium text-ink">
-                  {ev.nombre}
-                  {!ev.cotizacion_id && (
-                    <span className="ml-2 text-[10px] uppercase tracking-wide text-ink-light border border-rule rounded-full px-1.5 py-0.5">
-                      Manual
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-ink-mid">{ev.clientes?.nombre || '—'}</td>
-                <td className="px-4 py-3 text-ink-mid">{ev.lugar || '—'}</td>
-                <td className="px-4 py-3 text-ink-mid">{ev.cantidad_personas || '—'}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-1 rounded-full ${estadoStyles[ev.estado]}`}>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <p className="font-medium text-ink">
+                      {ev.nombre}
+                      {!ev.cotizacion_id && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-ink-light border border-rule rounded-full px-1.5 py-0.5">
+                          Manual
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-ink-light mt-0.5">
+                      {new Date(ev.fecha + 'T00:00:00').toLocaleDateString('es-AR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                      })}
+                      {ev.hora_inicio && ` · ${ev.hora_inicio.slice(0, 5)}`}
+                      {ev.evento_dias?.length > 1 && ` · ${ev.evento_dias.length} días`}
+                    </p>
+                  </div>
+                  <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${estadoStyles[ev.estado]}`}>
                     {ev.estado}
                   </span>
-                </td>
-              </tr>
+                </div>
+                <p className="text-sm text-ink-mid">{ev.clientes?.nombre || '—'}</p>
+                <p className="text-xs text-ink-light mt-0.5">
+                  {ev.lugar || '—'}{ev.cantidad_personas ? ` · ${ev.cantidad_personas} pax` : ''}
+                </p>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* ===== Desktop: tabla ===== */}
+          <div className="hidden sm:block border border-rule rounded-lg overflow-hidden bg-paper-card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-rule text-left text-xs uppercase tracking-wide text-ink-light">
+                  <th className="px-4 py-3 font-medium">Fecha</th>
+                  <th className="px-4 py-3 font-medium">Evento</th>
+                  <th className="px-4 py-3 font-medium">Cliente</th>
+                  <th className="px-4 py-3 font-medium">Lugar</th>
+                  <th className="px-4 py-3 font-medium">Pax</th>
+                  <th className="px-4 py-3 font-medium">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventosFiltrados.map((ev) => (
+                  <tr
+                    key={ev.id}
+                    onClick={() => (window.location.href = `/eventos/${ev.id}`)}
+                    className="border-b border-rule last:border-0 hover:bg-paper-warm/40 cursor-pointer"
+                  >
+                    <td className="px-4 py-3">
+                      {new Date(ev.fecha + 'T00:00:00').toLocaleDateString('es-AR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })}
+                      {ev.hora_inicio && <span className="text-ink-light ml-1.5">{ev.hora_inicio.slice(0, 5)}</span>}
+                      {ev.evento_dias?.length > 1 && (
+                        <span className="ml-1.5 text-[10px] uppercase tracking-wide text-blue-dark bg-blue-light rounded-full px-1.5 py-0.5">
+                          {ev.evento_dias.length} días
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-ink">
+                      {ev.nombre}
+                      {!ev.cotizacion_id && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-ink-light border border-rule rounded-full px-1.5 py-0.5">
+                          Manual
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-ink-mid">{ev.clientes?.nombre || '—'}</td>
+                    <td className="px-4 py-3 text-ink-mid">{ev.lugar || '—'}</td>
+                    <td className="px-4 py-3 text-ink-mid">{ev.cantidad_personas || '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${estadoStyles[ev.estado]}`}>
+                        {ev.estado}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {showForm && (
         <NuevoEventoModal
@@ -230,7 +267,7 @@ function NuevoEventoModal({ onClose, onCreated }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Cliente" required>
               <input
                 required
@@ -250,7 +287,7 @@ function NuevoEventoModal({ onClose, onCreated }) {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Fecha" required>
               <input
                 type="date"
@@ -270,7 +307,7 @@ function NuevoEventoModal({ onClose, onCreated }) {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Lugar">
               <input
                 value={form.lugar}

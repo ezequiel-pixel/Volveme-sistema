@@ -147,28 +147,29 @@ export default function Presupuesto() {
   return (
     <div className="bg-ink-light/10">
       {/* Barra de acciones — no se imprime */}
-      <div className="print:hidden sticky top-0 bg-paper border-b border-rule px-6 py-3 flex items-center justify-between z-10">
-        <Link to="/cotizaciones" className="flex items-center gap-1.5 text-sm text-ink-mid hover:text-ink">
-          <ArrowLeft size={15} /> Volver a Cotizaciones
+      <div className="print:hidden sticky top-0 bg-paper border-b border-rule px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2 z-10">
+        <Link to="/cotizaciones" className="flex items-center gap-1.5 text-sm text-ink-mid hover:text-ink flex-shrink-0">
+          <ArrowLeft size={15} /> <span className="hidden sm:inline">Volver a Cotizaciones</span>
         </Link>
-        <div className="flex items-center gap-3">
-          {envioError && <span className="text-xs text-coral">{envioError}</span>}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {envioError && <span className="text-xs text-coral w-full sm:w-auto text-right">{envioError}</span>}
           {!cotizacion.clientes?.telefono && (
-            <span className="text-xs text-ink-light">Sin teléfono cargado para este cliente</span>
+            <span className="text-xs text-ink-light">Sin teléfono cargado</span>
           )}
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-3 sm:px-4 py-2 hover:border-ink hover:text-ink transition-colors"
           >
-            <Printer size={15} /> Imprimir / Guardar
+            <Printer size={15} /> <span className="hidden sm:inline">Imprimir / Guardar</span>
           </button>
           <button
             onClick={handleEnviarWhatsapp}
             disabled={enviando}
-            className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-3 sm:px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
           >
             {enviando ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}
-            {enviando ? 'Generando PDF…' : 'Enviar por WhatsApp'}
+            <span className="hidden sm:inline">{enviando ? 'Generando PDF…' : 'Enviar por WhatsApp'}</span>
+            <span className="sm:hidden">{enviando ? '…' : 'WhatsApp'}</span>
           </button>
         </div>
       </div>

@@ -99,16 +99,18 @@ body {
 }
 
 /* En pantallas chicas, la réplica A4 (.presupuesto) se saca de la vista
-   con position:absolute — nunca con display:none, porque html2canvas
-   necesita que el elemento tenga layout real para poder capturarlo al
-   generar el PDF (el botón "Enviar por WhatsApp"/"Imprimir" funciona
-   igual desde el celular). En su lugar se muestra ".mobile-vista",
-   pensada para leerse cómoda en pantalla chica. */
+   con position:fixed (nunca display:none, porque html2canvas necesita
+   que el elemento tenga layout real para poder capturarlo al generar
+   el PDF — el botón "Enviar por WhatsApp"/"Imprimir" funciona igual
+   desde el celular). Importante: tiene que ser "fixed", no "absolute" —
+   fixed no cuenta para el ancho/alto scrolleable de la página, así que
+   no genera scroll horizontal fantasma. En su lugar se muestra
+   ".mobile-vista", pensada para leerse cómoda en pantalla chica. */
 @media screen and (max-width: 767px) {
   .presupuesto {
-    position: absolute;
-    left: -99999px;
+    position: fixed;
     top: 0;
+    left: -9999px;
   }
 }
 

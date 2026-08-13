@@ -159,7 +159,7 @@ export default function CafeDelMes() {
           <input className="input" placeholder='ej: "Nicaragua — Parainema, Caturra Lavado"'
             value={form.nombre_cafe} onChange={(e) => set('nombre_cafe', e.target.value)} />
         </Campo>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo label="Origen"><input className="input" value={form.origen} onChange={(e) => set('origen', e.target.value)} /></Campo>
           <Campo label="Región"><input className="input" value={form.region} onChange={(e) => set('region', e.target.value)} /></Campo>
           <Campo label="Variedad"><input className="input" value={form.variedad} onChange={(e) => set('variedad', e.target.value)} /></Campo>
@@ -175,7 +175,7 @@ export default function CafeDelMes() {
       </Seccion>
 
       <Seccion titulo="Puntajes de cata (escala 0 a 10)">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <Campo label="General"><input className="input" type="number" step="0.25" value={form.general} onChange={(e) => set('general', e.target.value)} /></Campo>
           <Campo label="Fragancia / Aroma"><input className="input" type="number" step="0.25" value={form.fragancia_aroma} onChange={(e) => set('fragancia_aroma', e.target.value)} /></Campo>
           <Campo label="Sabor"><input className="input" type="number" step="0.25" value={form.sabor} onChange={(e) => set('sabor', e.target.value)} /></Campo>
