@@ -13,8 +13,6 @@ export async function generarPdfBlob(containerEl) {
   const altoPagina = 297
 
   for (let i = 0; i < paginas.length; i++) {
-    // scale 3 + PNG (sin pérdida) — antes era scale:2 + JPEG 0.92, que
-    // se notaba pixelado sobre todo en la foto de portada.
     // windowWidth fuerza SIEMPRE un ancho de escritorio (1200px) para
     // renderizar, sin importar si quien genera el PDF está en el
     // celular. Es clave: sin esto, en pantallas angostas (<768px) se
@@ -28,10 +26,15 @@ export async function generarPdfBlob(containerEl) {
       windowWidth: 1200,
       windowHeight: 1600,
     })
-    const imgData = canvas.toDataURL('image/png')
+    // JPEG en vez de PNG: con 7 hojas llenas de fotos, PNG sin
+    // comprimir hacía que el PDF pesara más de 200MB (imposible de
+    // mandar por WhatsApp/mail). JPEG calidad 0.92 se ve prácticamente
+    // igual y pesa una fracción — el mismo criterio que ya usamos en
+    // la versión mobile.
+    const imgData = canvas.toDataURL('image/jpeg', 0.92)
 
     if (i > 0) pdf.addPage()
-    pdf.addImage(imgData, 'PNG', 0, 0, anchoPagina, altoPagina)
+    pdf.addImage(imgData, 'JPEG', 0, 0, anchoPagina, altoPagina)
   }
 
   return pdf.output('blob')
