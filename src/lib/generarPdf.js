@@ -61,8 +61,11 @@ export async function generarPdfMobileBlob(el) {
   const altoMM = (canvas.height / canvas.width) * anchoMM
 
   const pdf = new jsPDF({ unit: 'mm', format: [anchoMM, altoMM], orientation: 'portrait' })
-  const imgData = canvas.toDataURL('image/png')
-  pdf.addImage(imgData, 'PNG', 0, 0, anchoMM, altoMM)
+  // JPEG en vez de PNG: esta versión lleva la foto de portada de fondo
+  // completo, y PNG sin comprimir con fotos pesa muchísimo (varios MB).
+  // JPEG calidad 0.85 se ve prácticamente igual y pesa una fracción.
+  const imgData = canvas.toDataURL('image/jpeg', 0.85)
+  pdf.addImage(imgData, 'JPEG', 0, 0, anchoMM, altoMM)
 
   return pdf.output('blob')
 }
