@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generarPdfBlob, subirPdf, armarLinkWhatsapp } from '../lib/generarPdf'
+import { generarPdfBlob, generarPdfMobileBlob } from '../lib/generarPdf'
 import {
-  Printer, ArrowLeft, MessageCircle, Loader2,
+  Printer, ArrowLeft, Loader2, Smartphone,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
-  CalendarDays, MapPin, Clock, Users, Timer, Cookie, Sprout,
+  CalendarDays, MapPin, Clock, Users, Timer, Cookie,
 } from 'lucide-react'
 
 const money = (n) =>
@@ -44,9 +44,31 @@ export default function Presupuesto() {
   const [pasteleriaItems, setPasteleriaItems] = useState([])
   const [cafeDelMes, setCafeDelMes] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [enviando, setEnviando] = useState(false)
+  const [enviandoMobile, setEnviandoMobile] = useState(false)
+  const [descargando, setDescargando] = useState(false)
   const [envioError, setEnvioError] = useState('')
   const contenidoRef = useRef(null)
+  const mobileVistaRef = useRef(null)
+
+  // Controla en JS (no en CSS) cuál de las dos vistas se ve en pantalla —
+  // la réplica A4 (.presupuesto) o la vista angosta (.mobile-vista).
+  // Las DOS quedan siempre montadas en el DOM (la que no se ve, se manda
+  // fuera de pantalla con estilos inline, nunca con display:none, para
+  // que html2canvas siempre pueda capturar cualquiera de las dos sin
+  // depender de que el navegador vuelva a evaluar un media query CSS en
+  // medio de la captura — eso es lo que antes generaba capturas mezcladas
+  // o cortadas según desde qué pantalla se generara el PDF.
+  const [esMobile, setEsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = (e) => setEsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  const estiloOculto = { position: 'fixed', top: 0, left: '-9999px' }
 
   useEffect(() => {
     async function cargar() {
@@ -103,8 +125,23 @@ export default function Presupuesto() {
     return () => { document.title = 'Volveme' }
   }, [cotizacion, dias])
 
-  async function handleEnviarWhatsapp() {
-    setEnviando(true)
+  /** Dispara la descarga de un blob ya generado. */
+  function descargarBlob(blob, nombreArchivo) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nombreArchivo
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  /** PDF completo (8 hojas A4) — genera con html2canvas + jsPDF (no
+   * window.print(), que en mobile sale con páginas cortadas y sin
+   * color) y lo descarga directo al dispositivo. */
+  async function handleDescargarDesktop() {
+    setDescargando(true)
     setEnvioError('')
     try {
       const blob = await generarPdfBlob(contenidoRef.current)
@@ -115,21 +152,37 @@ export default function Presupuesto() {
         primerDia?.fecha,
         cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
       ].filter(Boolean).join('-') + '.pdf'
-
-      const url = await subirPdf(blob, nombreArchivo)
-
-      const mensaje =
-        `¡Hola ${cotizacion.clientes?.nombre || ''}! Te paso el presupuesto de Volveme para tu evento` +
-        `${primerDia ? ` del ${formatFecha(primerDia.fecha)}` : ''}:\n\n${url}\n\n` +
-        `Cualquier consulta quedo atento. ¡Gracias!`
-
-      const link = armarLinkWhatsapp(cotizacion.clientes?.telefono, mensaje)
-      window.open(link, '_blank')
+      descargarBlob(blob, nombreArchivo)
     } catch (err) {
-      setEnvioError('No se pudo generar o subir el PDF. Probá de nuevo.')
+      setEnvioError('No se pudo generar el PDF. Probá de nuevo.')
       console.error(err)
     }
-    setEnviando(false)
+    setDescargando(false)
+  }
+
+  /** Igual que handleDescargarDesktop, pero genera la versión angosta
+   * tipo celular (una sola tira, con el mismo diseño de marca) en vez de
+   * las 8 hojas A4. Funciona aunque quien lo genera esté en la
+   * computadora — la vista mobile queda siempre lista para capturar
+   * (ver esMobile / estiloOculto más arriba). */
+  async function handleDescargarMobile() {
+    setEnviandoMobile(true)
+    setEnvioError('')
+    try {
+      const blob = await generarPdfMobileBlob(mobileVistaRef.current)
+      const primerDia = dias[0]
+      const nombreArchivo = [
+        'presupuesto-volveme-mobile',
+        slug(cotizacion.clientes?.nombre),
+        primerDia?.fecha,
+        cotizacion.cantidad_pax ? `${cotizacion.cantidad_pax}pax` : null,
+      ].filter(Boolean).join('-') + '.pdf'
+      descargarBlob(blob, nombreArchivo)
+    } catch (err) {
+      setEnvioError('No se pudo generar la versión mobile. Probá de nuevo.')
+      console.error(err)
+    }
+    setEnviandoMobile(false)
   }
 
   if (loading) {
@@ -147,33 +200,249 @@ export default function Presupuesto() {
   return (
     <div className="bg-ink-light/10">
       {/* Barra de acciones — no se imprime */}
-      <div className="print:hidden sticky top-0 bg-paper border-b border-rule px-6 py-3 flex items-center justify-between z-10">
-        <Link to="/cotizaciones" className="flex items-center gap-1.5 text-sm text-ink-mid hover:text-ink">
-          <ArrowLeft size={15} /> Volver a Cotizaciones
+      <div className="print:hidden sticky top-0 bg-paper border-b border-rule px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2 z-10">
+        <Link to="/cotizaciones" className="flex items-center gap-1.5 text-sm text-ink-mid hover:text-ink flex-shrink-0">
+          <ArrowLeft size={15} /> <span className="hidden sm:inline">Volver a Cotizaciones</span>
         </Link>
-        <div className="flex items-center gap-3">
-          {envioError && <span className="text-xs text-coral">{envioError}</span>}
-          {!cotizacion.clientes?.telefono && (
-            <span className="text-xs text-ink-light">Sin teléfono cargado para este cliente</span>
-          )}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {envioError && <span className="text-xs text-coral w-full sm:w-auto text-right">{envioError}</span>}
           <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+            onClick={handleDescargarDesktop}
+            disabled={descargando}
+            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-3 sm:px-4 py-2 hover:border-ink hover:text-ink transition-colors disabled:opacity-50"
           >
-            <Printer size={15} /> Imprimir / Guardar
+            {descargando ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
+            <span>{descargando ? 'Generando…' : 'Descargar (Desktop)'}</span>
           </button>
           <button
-            onClick={handleEnviarWhatsapp}
-            disabled={enviando}
-            className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
+            onClick={handleDescargarMobile}
+            disabled={enviandoMobile}
+            className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-3 sm:px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
           >
-            {enviando ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}
-            {enviando ? 'Generando PDF…' : 'Enviar por WhatsApp'}
+            {enviandoMobile ? <Loader2 size={15} className="animate-spin" /> : <Smartphone size={15} />}
+            <span>{enviandoMobile ? 'Generando…' : 'Descargar (Mobile)'}</span>
           </button>
         </div>
       </div>
 
-      <div ref={contenidoRef} className="presupuesto max-w-[820px] mx-auto bg-paper">
+      {/* ============ VISTA MOBILE — versión angosta con el mismo diseño de marca ============
+          No es un resumen de texto aparte: reusa la misma paleta, tipografía y
+          fotos que el PDF de escritorio, apiladas en una sola columna angosta.
+          Sirve para leer cómodo en el celular Y es lo que se captura para el
+          botón "Versión mobile". El PDF real de 8 hojas sigue saliendo del
+          bloque de abajo (.presupuesto) — acá abajo no se toca nada de eso. */}
+      <div
+        ref={mobileVistaRef}
+        className="mobile-vista print:hidden bg-paper overflow-hidden"
+        style={esMobile ? { width: '100%' } : { ...estiloOculto, width: 420 }}
+      >
+        {/* Portada — imagen completa sin recortar, ancho completo. Nada
+            de trucos de CSS para "cover": el motor que genera el PDF
+            (html2canvas) no siempre los interpreta bien, y por ahí
+            terminaba rompiendo o estirando la imagen. Así es imposible
+            que salga mal, aunque no sea un recorte perfecto. */}
+        <img src="/images/mobile-1.jpg" alt="" className="w-full h-auto block" />
+        <div className="text-center pt-8 pb-6 px-6 bg-paper">
+          <p className="font-display text-4xl text-wine mb-1">volveme<sup className="text-sm align-super">®</sup></p>
+          <p className="text-[11px] tracking-[0.15em] uppercase text-ink font-semibold">
+            Barra de café de especialidad móvil
+          </p>
+        </div>
+        <div className="bg-peach px-6 py-10 text-center">
+          <p className="text-xs uppercase tracking-wide text-ink-mid mb-2">Presupuesto para</p>
+          <p className="font-display text-4xl text-wine mb-2 leading-tight">{cotizacion.clientes?.nombre || '—'}</p>
+          <p className="text-sm font-bold text-ink uppercase tracking-wide mb-3">
+            {cotizacion.nombre_evento || 'Evento privado'}
+          </p>
+          {primerDia && (
+            <p className="text-sm font-bold text-ink">FECHA: {formatFecha(primerDia.fecha)}</p>
+          )}
+          <p className="text-xs text-ink-light underline mt-3">*Este presupuesto tiene validez por 15 días</p>
+        </div>
+
+        {/* Sobre el evento */}
+        <div className="bg-peach px-6 pt-10 pb-8">
+          <p className="font-display text-3xl text-wine text-center mb-2">Sobre el evento</p>
+          <p className="text-sm text-ink-mid text-center mb-6">
+            Toda la información que necesitamos para que tu evento sea <strong className="text-ink">único</strong>
+          </p>
+          <div className="bg-paper rounded-lg p-5 space-y-4">
+            {dias.map((dia, i) => (
+              <MobileDato
+                key={`f-${i}`}
+                icon={CalendarDays}
+                color="#3f6bff"
+                label={esMultiDia ? `Fecha (día ${i + 1})` : 'Fecha'}
+                valor={formatFecha(dia.fecha)}
+              />
+            ))}
+            <MobileDato icon={MapPin} color="#fd926f" label="Ubicación" valor={cotizacion.lugar || '—'} />
+            {dias.map((dia, i) => (
+              dia.hora_inicio && dia.hora_fin ? (
+                <MobileDato
+                  key={`h-${i}`}
+                  icon={Clock}
+                  color="#b7ddff"
+                  label={esMultiDia ? `Horario (día ${i + 1})` : 'Horario'}
+                  valor={`${dia.hora_inicio.slice(0, 5)} a ${dia.hora_fin.slice(0, 5)}hs`}
+                />
+              ) : null
+            ))}
+            <MobileDato icon={Users} color="#8c5a45" label="Invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
+          </div>
+        </div>
+
+        {/* Café de especialidad */}
+        <div className="bg-peach px-6 pt-10 pb-10">
+          <p className="font-display text-3xl text-wine text-center mb-3">Café de especialidad</p>
+          <p className="text-sm text-ink-mid text-center leading-relaxed mb-6">
+            Café evaluado por catadores certificados con <strong className="text-ink">80 puntos o más sobre 100</strong>,
+            con trazabilidad completa de origen. Este es el que estamos sirviendo hoy en barra.
+          </p>
+
+          {cafeDelMes && (
+            <div className="bg-paper rounded-lg px-6 py-6 mb-8 text-center">
+              <p className="font-display text-2xl text-wine leading-tight mb-1">{cafeDelMes.nombre_cafe}</p>
+              <p className="text-xs text-ink-light mb-4">
+                {[cafeDelMes.variedad, cafeDelMes.beneficio, cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null]
+                  .filter(Boolean).join(' · ')}
+              </p>
+              {cafeDelMes.puntaje && (
+                <p className="mb-4">
+                  <span className="inline-block bg-wine text-paper text-xs font-bold uppercase tracking-wide rounded-full px-4 py-1.5">
+                    {cafeDelMes.puntaje} puntos
+                  </span>
+                </p>
+              )}
+              {cafeDelMes.notas_sabor_tags?.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {cafeDelMes.notas_sabor_tags.slice(0, 4).map((tag) => (
+                    <span key={tag} className="text-xs font-medium text-wine border border-orange/30 rounded-full px-3 py-1">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-6">
+            <FeatureIconoChico icon={Coffee} color="#3f6bff" titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
+            <FeatureIconoChico icon={Heart} color="#fd926f" titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
+            <FeatureIconoChico icon={Snowflake} color="#b7ddff" titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
+            <FeatureIconoChico icon={Leaf} color="#8c5a45" titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
+          </div>
+
+          <p className="font-display text-lg text-wine text-center mt-8">
+            Probado en nuestra barra. <em className="font-accent text-orange not-italic">Listo para tu evento.</em>
+          </p>
+        </div>
+
+        {/* Qué incluye */}
+        <div className="bg-paper px-6 pt-10 pb-8">
+          <p className="font-display text-3xl text-wine text-center mb-6">¿Qué incluye nuestro servicio?</p>
+          <ul className="space-y-3 max-w-sm mx-auto">
+            <MobileIncluye texto={`${cotizacion.cantidad_baristas || 1} Barista${cotizacion.cantidad_baristas > 1 ? 's' : ''}`} />
+            <MobileIncluye texto="Bebidas calientes (espresso, americano, latte, flat white y capuccino)" />
+            <MobileIncluye texto="Leche entera, de avena y almendras" />
+            {cotizacion.logo_3d && <MobileIncluye texto="Logo impreso en el arte latte (algunos cafés)" />}
+            {cotizacion.calcos && <MobileIncluye texto={`Calcos en los vasos de ${cotizacion.tamano_vaso}`} />}
+            <MobileIncluye texto="Azúcar, edulcorante, servilletas y removedores" />
+            <MobileIncluye texto="Vasos de polipapel" />
+            <MobileIncluye texto="Transporte, montaje y desmontaje" />
+          </ul>
+        </div>
+
+        {/* Pastelería */}
+        {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 && (
+          <div className="bg-peach px-6 pt-10 pb-8">
+            <p className="font-display text-3xl text-wine text-center mb-6">Anexo — Pastelería</p>
+            <ul className="space-y-3 bg-paper rounded-lg p-5">
+              {pasteleriaItems.map((it) => {
+                const precioUnitario = it.precio_proveedor * (1 + (cotizacion.pasteleria_markup_pct || 0))
+                return (
+                  <li key={it.id} className="flex items-center justify-between text-sm border-b border-rule pb-2.5 last:border-0 last:pb-0">
+                    <span className="text-ink-mid">{it.nombre_producto} <span className="text-ink-light">× {it.cantidad}</span></span>
+                    <span className="font-bold text-ink">{money(precioUnitario * it.cantidad)}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* Precio + condiciones */}
+        <div className="bg-peach px-6 pt-10 pb-10">
+          <div className="bg-wine rounded-lg p-7 text-center mb-8">
+            <p className="text-[11px] uppercase tracking-wide text-peach/70 mb-2">Precio</p>
+            {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 ? (
+              <p className="text-sm text-peach/80 mb-2">
+                Café {money(cotizacion.precio_neto)} + Pastelería {money(cotizacion.pasteleria_subtotal)}
+              </p>
+            ) : null}
+            <p className="font-display text-4xl text-paper mb-1 leading-none">
+              {money(cotizacion.lleva_pasteleria ? cotizacion.precio_final : cotizacion.precio_neto)}
+            </p>
+            <p className="text-sm text-peach/70">+ IVA</p>
+          </div>
+
+          <p className="font-display text-2xl text-wine text-center mb-4">Condiciones</p>
+          <div className="space-y-2.5 max-w-sm mx-auto">
+            <p className="text-sm text-ink-mid leading-relaxed text-center">
+              <strong className="text-ink">Reserva anticipada</strong> con el 50% y saldo restante 24hs antes del evento.
+            </p>
+            <p className="text-sm text-ink-mid leading-relaxed text-center">
+              Punto eléctrico para el equipamiento de <strong className="text-ink">10A.</strong>
+            </p>
+            <p className="text-sm text-ink-mid leading-relaxed text-center">
+              Informar si el acceso al lugar del evento presenta obstáculos o desniveles.
+            </p>
+          </div>
+        </div>
+
+        {/* Así vivimos nuestros eventos — collage simple en 2 columnas.
+            Cada foto se muestra completa, a su tamaño natural (ancho
+            100%, alto automático), sin recortar ni forzar ningún
+            tamaño — así queda garantizado que ninguna salga estirada
+            ni rota al generar el PDF. */}
+        <div className="bg-paper px-6 pt-10 pb-10">
+          <p className="font-display text-3xl text-wine text-center mb-6">Así vivimos nuestros eventos</p>
+          <div className="grid grid-cols-2 gap-2">
+            {['galeria-1', 'galeria-7', 'galeria-4', 'galeria-2', 'galeria-3', 'galeria-6'].map((img) => (
+              <img
+                key={img}
+                src={`/images/${img}.jpg`}
+                alt=""
+                className="w-full h-auto block rounded-sm"
+              />
+            ))}
+            <img
+              src="/images/galeria-5.jpg"
+              alt=""
+              className="w-full h-auto block rounded-sm col-span-2"
+            />
+          </div>
+        </div>
+
+        {/* Cierre */}
+        <div className="bg-wine px-6 pt-14 pb-12 text-center">
+          <p className="font-display text-2xl text-paper leading-snug mb-6">
+            volveme<sup className="text-sm align-super">®</sup> la barra de café<br />
+            para tu próximo <em className="font-accent text-orange not-italic">evento</em>.
+          </p>
+          <p className="text-xs text-paper/60 underline mb-6">*Este presupuesto tiene validez por 15 días</p>
+          <div className="text-xs text-paper/70 space-y-1">
+            <p>www.volveme.com · volveme.cafe</p>
+            <p>info@volveme.com · +54 9 11 5841-6365</p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        ref={contenidoRef}
+        className="presupuesto max-w-[820px] mx-auto bg-paper"
+        style={esMobile ? estiloOculto : undefined}
+      >
         {/* ============ PÁGINA 1 — PORTADA ============ */}
         <section className="pres-page flex flex-col bg-paper">
           <div className="text-center pt-14 pb-6 px-10">
@@ -281,113 +550,59 @@ export default function Presupuesto() {
           <Footer />
         </section>
 
-        {/* ============ PÁGINA 3 — CAFÉ ESPECIAL ============ */}
-        <section className="pres-page flex flex-col bg-paper relative overflow-hidden">
-          {/* detalle sutil de fondo — granos de café dispersos, muy baja opacidad */}
-          <div className="absolute inset-0 pointer-events-none opacity-[0.035] flex items-end justify-center pb-10">
-            <Coffee size={280} strokeWidth={0.6} className="text-wine" />
-          </div>
-
-          <div className="flex-1 flex flex-col justify-center px-14">
-            <h2 className="font-display text-5xl text-center text-wine mb-6">Café especial</h2>
-            <p className="text-center text-base text-ink-mid px-6 mb-2 leading-relaxed">
-              En <strong className="text-ink">Volveme</strong> seleccionamos el café para cada evento, buscando el perfil
-              que mejor se adapta a <strong className="text-ink">la experiencia</strong> que querés crear.
-            </p>
-            <p className="text-center text-base text-ink-mid px-6 mb-16 leading-relaxed">
-              Trabajamos con granos seleccionados de origen, tostados cuidadosamente para destacar sus notas y
-              ofrecer <strong className="text-ink">una bebida equilibrada y memorable</strong>.
-            </p>
-
-            <div className="grid grid-cols-2 gap-x-14 gap-y-16">
-              <FeatureIcono icon={Coffee} color="#3f6bff" titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
-              <FeatureIcono icon={Heart} color="#fd926f" titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
-              <FeatureIcono icon={Snowflake} color="#b7ddff" titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
-              <FeatureIcono icon={Leaf} color="#8c5a45" titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
-            </div>
-          </div>
-
-          <p className="relative text-center font-display text-3xl text-wine pb-8">volveme<sup className="text-base">®</sup></p>
-        </section>
-
-        {/* ============ PÁGINA 3B — CAFÉ DE ESPECIALIDAD (explicación + ficha real del mes, todo en un slide) ============ */}
-        <section className="pres-page flex flex-col bg-peach relative overflow-hidden">
+        {/* ============ PÁGINA 3 — CAFÉ DE ESPECIALIDAD (una sola hoja, con onda) ============ */}
+        <section className="pres-page flex flex-col items-center justify-center bg-peach relative overflow-hidden px-16">
           <Watermark texto="volveme" />
-          <div
-            className="absolute -right-10 -top-10 w-40 h-56 opacity-[0.06] pointer-events-none"
-            style={{ background: '#a47864', borderRadius: '999px 999px 0 0' }}
-          />
 
-          <div className="relative flex-1 flex flex-col px-14 pt-12">
-            <h2 className="font-display text-4xl text-center text-wine mb-4">Café de especialidad</h2>
-            <p className="text-center text-sm text-ink-mid px-6 mb-8 leading-relaxed max-w-[560px] mx-auto">
-              Se llama así al café que obtiene <strong className="text-ink">80 puntos o más sobre 100</strong> en
-              una cata evaluada por catadores certificados: aroma, sabor, cuerpo, acidez, dulzor y ausencia de
-              defectos. Cada lote tiene trazabilidad completa — de qué finca salió, a qué altura, con qué
-              variedad y proceso. Este es el que estamos sirviendo hoy en barra.
+          <div className="relative text-center max-w-[540px]">
+            <h2 className="font-display text-4xl text-wine mb-3">Café de especialidad</h2>
+            <p className="text-sm text-ink-mid leading-relaxed mb-7">
+              Café evaluado por catadores certificados con <strong className="text-ink">80 puntos o más sobre 100</strong>,
+              con trazabilidad completa de origen. Este es el que estamos sirviendo hoy en barra.
             </p>
 
-            {cafeDelMes ? (
-              <>
-                <div className="text-center mb-6">
-                  <div className="inline-flex items-center gap-2 bg-wine text-paper text-xs uppercase tracking-[0.2em] font-bold px-4 py-1.5 rounded-full mb-3">
-                    <Sprout size={13} /> Este mes en barra
+            {cafeDelMes && (
+              <div className="bg-paper rounded-md px-8 py-6 mb-8">
+                <p className="font-display text-2xl text-wine leading-tight mb-1">{cafeDelMes.nombre_cafe}</p>
+                <p className="text-xs text-ink-light mb-4">
+                  {[cafeDelMes.variedad, cafeDelMes.beneficio, cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null]
+                    .filter(Boolean).join(' · ')}
+                </p>
+
+                {cafeDelMes.puntaje && (
+                  <p className="mb-4">
+                    <span className="inline-block bg-wine text-paper text-xs font-bold uppercase tracking-wide rounded-full px-4 py-1.5">
+                      {cafeDelMes.puntaje} puntos
+                    </span>
+                  </p>
+                )}
+
+                {cafeDelMes.notas_sabor_tags?.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-1.5">
+                    {cafeDelMes.notas_sabor_tags.slice(0, 4).map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-xs font-medium text-wine border border-orange/30 rounded-full px-3 py-1"
+                      >
+                        {tag}
+                      </span>
+                    ))}
                   </div>
-                  <h3 className="font-display text-3xl text-wine leading-tight">{cafeDelMes.nombre_cafe}</h3>
-                </div>
+                )}
+              </div>
+            )}
 
-                <div className="grid grid-cols-4 gap-x-4 gap-y-3 max-w-[560px] mx-auto w-full mb-6">
-                  <FichaDato label="Origen" valor={cafeDelMes.origen} />
-                  <FichaDato label="Variedad" valor={cafeDelMes.variedad} />
-                  <FichaDato label="Proceso" valor={cafeDelMes.beneficio} />
-                  <FichaDato label="Altura" valor={cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null} />
-                  <FichaDato label="Finca" valor={cafeDelMes.finca} />
-                  <FichaDato label="Puntaje" valor={cafeDelMes.puntaje ? cafeDelMes.puntaje : null} />
-                  <FichaDato label="Zafra" valor={cafeDelMes.zafra} />
-                  <FichaDato label="Región" valor={cafeDelMes.region} />
-                </div>
+            <div className="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
+              <FeatureIconoChico icon={Coffee} color="#3f6bff" titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
+              <FeatureIconoChico icon={Heart} color="#fd926f" titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
+              <FeatureIconoChico icon={Snowflake} color="#b7ddff" titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
+              <FeatureIconoChico icon={Leaf} color="#8c5a45" titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
+            </div>
 
-                <div className="flex items-center justify-center gap-8 mb-4">
-                  <RadarChart
-                    size={175}
-                    metrics={[
-                      { label: 'General', value: cafeDelMes.general },
-                      { label: 'Fragancia', value: cafeDelMes.fragancia_aroma },
-                      { label: 'Sabor', value: cafeDelMes.sabor },
-                      { label: 'Acidez', value: cafeDelMes.acidez },
-                      { label: 'Cuerpo', value: cafeDelMes.cuerpo },
-                      { label: 'Balance', value: cafeDelMes.balance },
-                      { label: 'Retrogusto', value: cafeDelMes.retrogusto },
-                    ]}
-                  />
-                  {cafeDelMes.notas_sabor_tags?.length > 0 && (
-                    <div className="max-w-[200px]">
-                      <p className="text-[11px] uppercase tracking-wide text-ink-mid mb-2">Notas de sabor</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {cafeDelMes.notas_sabor_tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-xs font-medium text-wine bg-paper border border-orange/30 rounded-full px-3 py-1"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                      {cafeDelMes.notas_cata && (
-                        <p className="text-xs text-ink-mid leading-relaxed mt-3 line-clamp-4">
-                          {cafeDelMes.notas_cata}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : null}
+            <p className="font-display text-xl text-wine">
+              Probado en nuestra barra. <em className="font-accent text-orange not-italic">Listo para tu evento.</em>
+            </p>
           </div>
-
-          <p className="relative text-center font-display text-2xl text-wine pb-8">
-            Probado en nuestra barra. <em className="font-accent text-orange not-italic">Listo para tu evento.</em>
-          </p>
         </section>
 
         {/* ============ PÁGINA 4 — NUESTRAS PREPARACIONES ============ */}
@@ -648,21 +863,22 @@ function DashedRule() {
   return <div className="mx-10 border-t-2 border-dashed border-orange/40" />
 }
 
-function FeatureIcono({ icon: Icon, titulo, texto, color }) {
+function FeatureIconoChico({ icon: Icon, titulo, texto, color }) {
   return (
     <div className="text-center">
-      <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+      <div className="relative w-14 h-14 mx-auto mb-3 flex items-center justify-center">
         <span
-          className="absolute w-10 h-10 rounded-full"
-          style={{ backgroundColor: color || '#ff6a1a', opacity: 0.5, top: -3, right: -3 }}
+          className="absolute w-9 h-9 rounded-full"
+          style={{ backgroundColor: color || '#ff6a1a', opacity: 0.55, top: -3, right: -3 }}
         />
-        <Icon size={34} strokeWidth={1.4} className="relative text-ink" />
+        <Icon size={28} strokeWidth={1.4} className="relative text-ink" />
       </div>
-      <p className="font-bold text-lg text-ink mb-1.5">{titulo}</p>
-      <p className="text-sm text-ink-mid leading-snug px-2">{texto}</p>
+      <p className="text-sm font-bold text-ink mb-0.5">{titulo}</p>
+      <p className="text-xs text-ink-mid leading-snug">{texto}</p>
     </div>
   )
 }
+
 
 function IconoConCirculo({ icon: Icon, color }) {
   return (
@@ -741,67 +957,29 @@ function Condicion({ texto }) {
   )
 }
 
-function FichaDato({ label, valor }) {
-  if (!valor) return null
+function MobileDato({ label, valor, icon: Icon, color }) {
   return (
-    <div>
-      <p className="text-[11px] uppercase tracking-wide text-ink-mid">{label}</p>
-      <p className="text-base font-bold text-ink">{valor}</p>
+    <div className="flex items-center gap-3.5">
+      {Icon && (
+        <div className="relative w-9 h-9 flex-shrink-0 flex items-center justify-center">
+          <span className="absolute w-7 h-7 rounded-full" style={{ backgroundColor: color || '#ff6a1a', opacity: 0.55 }} />
+          <Icon size={16} strokeWidth={1.8} className="relative text-ink" />
+        </div>
+      )}
+      <div>
+        <p className="text-[11px] uppercase tracking-wide text-ink-mid">{label}</p>
+        <p className="text-base font-bold text-ink">{valor}</p>
+      </div>
     </div>
   )
 }
 
-/** Radar/spider chart chico en SVG puro — sin librerías, para que
- * html2canvas lo capture igual que el resto del presupuesto. */
-function RadarChart({ metrics, size = 210, color = '#ff6a1a', trackColor = '#e3cdb8' }) {
-  const datos = metrics.filter((m) => m.value !== null && m.value !== undefined)
-  if (datos.length < 3) return null
-
-  const max = 10
-  const center = size / 2
-  const radius = size / 2 - 30
-  const n = datos.length
-  const angleStep = (Math.PI * 2) / n
-  const startAngle = -Math.PI / 2
-
-  const puntoPara = (i, valor) => {
-    const angle = startAngle + i * angleStep
-    const r = (Math.max(0, Math.min(max, valor)) / max) * radius
-    return [center + r * Math.cos(angle), center + r * Math.sin(angle)]
-  }
-
-  const anillos = [2.5, 5, 7.5, 10]
-  const puntosData = datos.map((m, i) => puntoPara(i, m.value))
-  const pathData = puntosData.map((p) => p.join(',')).join(' ')
-
+function MobileIncluye({ texto }) {
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
-      {anillos.map((nivel) => (
-        <polygon
-          key={nivel}
-          points={datos.map((_, i) => puntoPara(i, nivel).join(',')).join(' ')}
-          fill="none"
-          stroke={trackColor}
-          strokeWidth="1"
-        />
-      ))}
-      {datos.map((_, i) => {
-        const [x, y] = puntoPara(i, max)
-        return <line key={i} x1={center} y1={center} x2={x} y2={y} stroke={trackColor} strokeWidth="1" />
-      })}
-      <polygon points={pathData} fill={color} fillOpacity="0.2" stroke={color} strokeWidth="2" />
-      {puntosData.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="3" fill={color} />
-      ))}
-      {datos.map((m, i) => {
-        const [lx, ly] = puntoPara(i, max * 1.32)
-        return (
-          <text key={m.label} x={lx} y={ly} fontSize="9.5" fill="#57534f" textAnchor="middle" dominantBaseline="middle">
-            {m.label}
-          </text>
-        )
-      })}
-    </svg>
+    <li className="flex items-start gap-2.5 text-sm text-ink-mid leading-relaxed">
+      <CheckCircle2 size={16} strokeWidth={2} className="text-orange flex-shrink-0 mt-0.5" />
+      {texto}
+    </li>
   )
 }
 
