@@ -98,20 +98,16 @@ body {
   break-after: page;
 }
 
-/* En pantallas chicas, la réplica A4 (.presupuesto) se saca de la vista
-   con position:fixed (nunca display:none, porque html2canvas necesita
-   que el elemento tenga layout real para poder capturarlo al generar
-   el PDF — el botón "Enviar por WhatsApp"/"Imprimir" funciona igual
-   desde el celular). Importante: tiene que ser "fixed", no "absolute" —
-   fixed no cuenta para el ancho/alto scrolleable de la página, así que
-   no genera scroll horizontal fantasma. En su lugar se muestra
-   ".mobile-vista", pensada para leerse cómoda en pantalla chica. */
-@media screen and (max-width: 767px) {
-  .presupuesto {
-    position: fixed;
-    top: 0;
-    left: -9999px;
-  }
+/* El de-arriba/abajo entre la réplica A4 (.presupuesto) y la vista
+   angosta (.mobile-vista) ya NO se decide acá con @media — se controla
+   en JS (ver esMobile / estiloOculto en Presupuesto.jsx) con estilos
+   inline en cada elemento. Es más confiable: un estilo inline puesto a
+   propósito antes de capturar no depende de que html2canvas vuelva a
+   evaluar un media query en el momento exacto de la captura, que era
+   lo que a veces mezclaba o cortaba mal el PDF según desde qué pantalla
+   se generaba. Acá solo queda el tamaño base de cada una. */
+.mobile-vista {
+  width: 100%;
 }
 
 @media print {
