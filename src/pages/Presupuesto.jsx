@@ -400,27 +400,22 @@ export default function Presupuesto() {
           </div>
         </div>
 
-        {/* Así vivimos nuestros eventos — collage simple en 2 columnas.
-            Cada foto se muestra completa, a su tamaño natural (ancho
-            100%, alto automático), sin recortar ni forzar ningún
-            tamaño — así queda garantizado que ninguna salga estirada
-            ni rota al generar el PDF. */}
+        {/* Así vivimos nuestros eventos — collage simple, 4 fotos en 2x2.
+            Ya vienen recortadas a cuadrado DE ANTEMANO (no con CSS al
+            momento de generar el PDF) — por eso salen todas parejas,
+            del mismo tamaño, sin depender de que el motor del PDF
+            calcule bien ningún recorte. */}
         <div className="bg-paper px-6 pt-10 pb-10">
           <p className="font-display text-3xl text-wine text-center mb-6">Así vivimos nuestros eventos</p>
           <div className="grid grid-cols-2 gap-2">
-            {['galeria-1', 'galeria-7', 'galeria-4', 'galeria-2', 'galeria-3', 'galeria-6'].map((img) => (
+            {[1, 2, 3, 4].map((n) => (
               <img
-                key={img}
-                src={`/images/${img}.jpg`}
+                key={n}
+                src={`/images/collage-${n}.jpg`}
                 alt=""
                 className="w-full h-auto block rounded-sm"
               />
             ))}
-            <img
-              src="/images/galeria-5.jpg"
-              alt=""
-              className="w-full h-auto block rounded-sm col-span-2"
-            />
           </div>
         </div>
 
@@ -806,13 +801,12 @@ export default function Presupuesto() {
         <section className="pres-page flex flex-col bg-paper">
           <div className="flex-1 flex flex-col justify-center px-10">
             <h2 className="font-display text-4xl text-center text-wine mb-10">Así vivimos nuestros eventos</h2>
-            {/* Grid 2 / 3 / 2 — mismo layout asimétrico de la referencia original.
-                Base de 6 columnas: fila 1 y 3 usan col-span-3 (2 fotos por fila),
-                fila 2 usa col-span-2 (3 fotos por fila). */}
+            {/* Grid 6 / 2-2-2 — sin galeria-7 (resolución muy baja, se
+                veía pixelada al mostrarla grande). Fila 1: foto ancha.
+                Fila 2 y 3: tres fotos parejas por fila. */}
             <div className="grid grid-cols-6 gap-3">
               {[
-                { img: 'galeria-1', span: 3 },
-                { img: 'galeria-7', span: 3 }, // foto nueva agregada
+                { img: 'galeria-1', span: 6 },
                 { img: 'galeria-4', span: 2 },
                 { img: 'galeria-2', span: 2 },
                 { img: 'galeria-3', span: 2 },
