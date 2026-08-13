@@ -51,6 +51,26 @@ export default function Presupuesto() {
   const contenidoRef = useRef(null)
   const mobileVistaRef = useRef(null)
 
+  // Controla en JS (no en CSS) cuál de las dos vistas se ve en pantalla —
+  // la réplica A4 (.presupuesto) o la vista angosta (.mobile-vista).
+  // Las DOS quedan siempre montadas en el DOM (la que no se ve, se manda
+  // fuera de pantalla con estilos inline, nunca con display:none, para
+  // que html2canvas siempre pueda capturar cualquiera de las dos sin
+  // depender de que el navegador vuelva a evaluar un media query CSS en
+  // medio de la captura — eso es lo que antes generaba capturas mezcladas
+  // o cortadas según desde qué pantalla se generara el PDF.
+  const [esMobile, setEsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = (e) => setEsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  const estiloOculto = { position: 'fixed', top: 0, left: '-9999px' }
+
   useEffect(() => {
     async function cargar() {
       const { data: cot } = await supabase
@@ -257,92 +277,153 @@ export default function Presupuesto() {
         </div>
       </div>
 
-      {/* ============ VISTA MOBILE — solo para leer cómodo en el celular ============
-          El PDF real (botones de arriba) siempre sale del bloque de abajo, con el
-          tamaño A4 exacto — esto es nada más una versión legible en pantalla chica,
-          no se imprime ni se manda, es para revisar antes de enviar. */}
-      <div ref={mobileVistaRef} className="mobile-vista print:hidden bg-paper">
-        <div className="text-center pt-10 pb-6 px-6 border-b border-rule">
+      {/* ============ VISTA MOBILE — versión angosta con el mismo diseño de marca ============
+          No es un resumen de texto aparte: reusa la misma paleta, tipografía y
+          fotos que el PDF de escritorio, apiladas en una sola columna angosta.
+          Sirve para leer cómodo en el celular Y es lo que se captura para el
+          botón "Versión mobile". El PDF real de 8 hojas sigue saliendo del
+          bloque de abajo (.presupuesto) — acá abajo no se toca nada de eso. */}
+      <div
+        ref={mobileVistaRef}
+        className="mobile-vista print:hidden bg-paper overflow-hidden"
+        style={esMobile ? { width: '100%' } : { ...estiloOculto, width: 420 }}
+      >
+        {/* Portada */}
+        <div className="relative w-full aspect-[4/3]">
+          <img src="/images/portada.jpg" alt="" className="w-full h-full object-cover block" />
+        </div>
+        <div className="text-center pt-8 pb-6 px-6 bg-paper">
           <p className="font-display text-4xl text-wine mb-1">volveme<sup className="text-sm align-super">®</sup></p>
           <p className="text-[11px] tracking-[0.15em] uppercase text-ink font-semibold">
             Barra de café de especialidad móvil
           </p>
         </div>
+        <div className="bg-peach px-6 py-10 text-center">
+          <p className="text-xs uppercase tracking-wide text-ink-mid mb-2">Presupuesto para</p>
+          <p className="font-display text-4xl text-wine mb-2 leading-tight">{cotizacion.clientes?.nombre || '—'}</p>
+          <p className="text-sm font-bold text-ink uppercase tracking-wide mb-3">
+            {cotizacion.nombre_evento || 'Evento privado'}
+          </p>
+          {primerDia && (
+            <p className="text-sm font-bold text-ink">FECHA: {formatFecha(primerDia.fecha)}</p>
+          )}
+          <p className="text-xs text-ink-light underline mt-3">*Este presupuesto tiene validez por 15 días</p>
+        </div>
 
-        <div className="px-6 py-8 space-y-8">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-ink-mid mb-1">Presupuesto para</p>
-            <p className="font-display text-3xl text-wine mb-1 leading-tight">{cotizacion.clientes?.nombre || '—'}</p>
-            <p className="text-sm font-bold text-ink-mid uppercase tracking-wide">
-              {cotizacion.nombre_evento || 'Evento privado'}
-            </p>
-          </div>
-
-          <div className="bg-peach rounded-lg p-5 space-y-4">
+        {/* Sobre el evento */}
+        <div className="bg-peach px-6 pt-10 pb-8">
+          <p className="font-display text-3xl text-wine text-center mb-2">Sobre el evento</p>
+          <p className="text-sm text-ink-mid text-center mb-6">
+            Toda la información que necesitamos para que tu evento sea <strong className="text-ink">único</strong>
+          </p>
+          <div className="bg-paper rounded-lg p-5 space-y-4">
             {dias.map((dia, i) => (
               <MobileDato
                 key={`f-${i}`}
                 icon={CalendarDays}
+                color="#3f6bff"
                 label={esMultiDia ? `Fecha (día ${i + 1})` : 'Fecha'}
                 valor={formatFecha(dia.fecha)}
               />
             ))}
-            <MobileDato icon={MapPin} label="Ubicación" valor={cotizacion.lugar || '—'} />
+            <MobileDato icon={MapPin} color="#fd926f" label="Ubicación" valor={cotizacion.lugar || '—'} />
             {dias.map((dia, i) => (
               dia.hora_inicio && dia.hora_fin ? (
                 <MobileDato
                   key={`h-${i}`}
                   icon={Clock}
+                  color="#b7ddff"
                   label={esMultiDia ? `Horario (día ${i + 1})` : 'Horario'}
                   valor={`${dia.hora_inicio.slice(0, 5)} a ${dia.hora_fin.slice(0, 5)}hs`}
                 />
               ) : null
             ))}
-            <MobileDato icon={Users} label="Invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
+            <MobileDato icon={Users} color="#8c5a45" label="Invitados" valor={`${cotizacion.cantidad_pax || '—'} pax`} />
           </div>
+        </div>
+
+        {/* Café de especialidad */}
+        <div className="bg-peach px-6 pt-10 pb-10">
+          <p className="font-display text-3xl text-wine text-center mb-3">Café de especialidad</p>
+          <p className="text-sm text-ink-mid text-center leading-relaxed mb-6">
+            Café evaluado por catadores certificados con <strong className="text-ink">80 puntos o más sobre 100</strong>,
+            con trazabilidad completa de origen. Este es el que estamos sirviendo hoy en barra.
+          </p>
 
           {cafeDelMes && (
-            <div className="border border-rule rounded-lg p-5">
-              <p className="text-xs uppercase tracking-wide text-ink-mid mb-2">Café de especialidad — este mes en barra</p>
-              <p className="font-display text-xl text-wine mb-1 leading-tight">{cafeDelMes.nombre_cafe}</p>
-              <p className="text-sm text-ink-mid">
-                {[cafeDelMes.variedad, cafeDelMes.beneficio].filter(Boolean).join(' · ')}
+            <div className="bg-paper rounded-lg px-6 py-6 mb-8 text-center">
+              <p className="font-display text-2xl text-wine leading-tight mb-1">{cafeDelMes.nombre_cafe}</p>
+              <p className="text-xs text-ink-light mb-4">
+                {[cafeDelMes.variedad, cafeDelMes.beneficio, cafeDelMes.altura ? `${cafeDelMes.altura} msnm` : null]
+                  .filter(Boolean).join(' · ')}
               </p>
+              {cafeDelMes.puntaje && (
+                <p className="mb-4">
+                  <span className="inline-block bg-wine text-paper text-xs font-bold uppercase tracking-wide rounded-full px-4 py-1.5">
+                    {cafeDelMes.puntaje} puntos
+                  </span>
+                </p>
+              )}
+              {cafeDelMes.notas_sabor_tags?.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {cafeDelMes.notas_sabor_tags.slice(0, 4).map((tag) => (
+                    <span key={tag} className="text-xs font-medium text-wine border border-orange/30 rounded-full px-3 py-1">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          <div>
-            <p className="font-display text-2xl text-wine mb-3">Qué incluye</p>
-            <ul className="space-y-2.5">
-              <MobileIncluye texto={`${cotizacion.cantidad_baristas || 1} Barista${cotizacion.cantidad_baristas > 1 ? 's' : ''}`} />
-              <MobileIncluye texto="Bebidas calientes (espresso, americano, latte, flat white y capuccino)" />
-              <MobileIncluye texto="Leche entera, de avena y almendras" />
-              {cotizacion.logo_3d && <MobileIncluye texto="Logo impreso en el arte latte (algunos cafés)" />}
-              {cotizacion.calcos && <MobileIncluye texto={`Calcos en los vasos de ${cotizacion.tamano_vaso}`} />}
-              <MobileIncluye texto="Azúcar, edulcorante, servilletas y removedores" />
-              <MobileIncluye texto="Vasos de polipapel" />
-              <MobileIncluye texto="Transporte, montaje y desmontaje" />
-            </ul>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-6">
+            <FeatureIconoChico icon={Coffee} color="#3f6bff" titulo="Café de especialidad" texto="Seleccionamos el café ideal para tu evento." />
+            <FeatureIconoChico icon={Heart} color="#fd926f" titulo="Experiencia y calidad" texto="Baristas profesionales, hospitalidad y servicio." />
+            <FeatureIconoChico icon={Snowflake} color="#b7ddff" titulo="Bebidas para cada momento" texto="Calientes, frías y opciones especiales." />
+            <FeatureIconoChico icon={Leaf} color="#8c5a45" titulo="Alternativas vegetales" texto="Leche de avena y almendras para todos tus invitados." />
           </div>
 
-          {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 && (
-            <div>
-              <p className="font-display text-2xl text-wine mb-3">Pastelería</p>
-              <ul className="space-y-3">
-                {pasteleriaItems.map((it) => {
-                  const precioUnitario = it.precio_proveedor * (1 + (cotizacion.pasteleria_markup_pct || 0))
-                  return (
-                    <li key={it.id} className="flex items-center justify-between text-sm border-b border-rule pb-2.5">
-                      <span className="text-ink-mid">{it.nombre_producto} <span className="text-ink-light">× {it.cantidad}</span></span>
-                      <span className="font-bold text-ink">{money(precioUnitario * it.cantidad)}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
+          <p className="font-display text-lg text-wine text-center mt-8">
+            Probado en nuestra barra. <em className="font-accent text-orange not-italic">Listo para tu evento.</em>
+          </p>
+        </div>
 
-          <div className="bg-wine rounded-lg p-6 text-center">
+        {/* Qué incluye */}
+        <div className="bg-paper px-6 pt-10 pb-8">
+          <p className="font-display text-3xl text-wine text-center mb-6">¿Qué incluye nuestro servicio?</p>
+          <ul className="space-y-3 max-w-sm mx-auto">
+            <MobileIncluye texto={`${cotizacion.cantidad_baristas || 1} Barista${cotizacion.cantidad_baristas > 1 ? 's' : ''}`} />
+            <MobileIncluye texto="Bebidas calientes (espresso, americano, latte, flat white y capuccino)" />
+            <MobileIncluye texto="Leche entera, de avena y almendras" />
+            {cotizacion.logo_3d && <MobileIncluye texto="Logo impreso en el arte latte (algunos cafés)" />}
+            {cotizacion.calcos && <MobileIncluye texto={`Calcos en los vasos de ${cotizacion.tamano_vaso}`} />}
+            <MobileIncluye texto="Azúcar, edulcorante, servilletas y removedores" />
+            <MobileIncluye texto="Vasos de polipapel" />
+            <MobileIncluye texto="Transporte, montaje y desmontaje" />
+          </ul>
+        </div>
+
+        {/* Pastelería */}
+        {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 && (
+          <div className="bg-peach px-6 pt-10 pb-8">
+            <p className="font-display text-3xl text-wine text-center mb-6">Anexo — Pastelería</p>
+            <ul className="space-y-3 bg-paper rounded-lg p-5">
+              {pasteleriaItems.map((it) => {
+                const precioUnitario = it.precio_proveedor * (1 + (cotizacion.pasteleria_markup_pct || 0))
+                return (
+                  <li key={it.id} className="flex items-center justify-between text-sm border-b border-rule pb-2.5 last:border-0 last:pb-0">
+                    <span className="text-ink-mid">{it.nombre_producto} <span className="text-ink-light">× {it.cantidad}</span></span>
+                    <span className="font-bold text-ink">{money(precioUnitario * it.cantidad)}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* Precio + condiciones */}
+        <div className="bg-peach px-6 pt-10 pb-10">
+          <div className="bg-wine rounded-lg p-7 text-center mb-8">
             <p className="text-[11px] uppercase tracking-wide text-peach/70 mb-2">Precio</p>
             {cotizacion.lleva_pasteleria && pasteleriaItems.length > 0 ? (
               <p className="text-sm text-peach/80 mb-2">
@@ -355,29 +436,39 @@ export default function Presupuesto() {
             <p className="text-sm text-peach/70">+ IVA</p>
           </div>
 
-          <p className="text-xs text-ink-light underline text-center">*Este presupuesto tiene validez por 15 días</p>
-
-          <div className="space-y-2.5 pt-2">
-            <p className="font-display text-xl text-wine mb-1">Condiciones</p>
-            <p className="text-sm text-ink-mid leading-relaxed">
+          <p className="font-display text-2xl text-wine text-center mb-4">Condiciones</p>
+          <div className="space-y-2.5 max-w-sm mx-auto">
+            <p className="text-sm text-ink-mid leading-relaxed text-center">
               <strong className="text-ink">Reserva anticipada</strong> con el 50% y saldo restante 24hs antes del evento.
             </p>
-            <p className="text-sm text-ink-mid leading-relaxed">
+            <p className="text-sm text-ink-mid leading-relaxed text-center">
               Punto eléctrico para el equipamiento de <strong className="text-ink">10A.</strong>
             </p>
-            <p className="text-sm text-ink-mid leading-relaxed">
+            <p className="text-sm text-ink-mid leading-relaxed text-center">
               Informar si el acceso al lugar del evento presenta obstáculos o desniveles.
             </p>
           </div>
+        </div>
 
-          <div className="text-center text-xs text-ink-light space-y-1 pt-6 border-t border-rule">
+        {/* Cierre */}
+        <div className="bg-wine px-6 pt-14 pb-12 text-center">
+          <p className="font-display text-2xl text-paper leading-snug mb-6">
+            volveme<sup className="text-sm align-super">®</sup> la barra de café<br />
+            para tu próximo <em className="font-accent text-orange not-italic">evento</em>.
+          </p>
+          <p className="text-xs text-paper/60 underline mb-6">*Este presupuesto tiene validez por 15 días</p>
+          <div className="text-xs text-paper/70 space-y-1">
             <p>www.volveme.com · volveme.cafe</p>
             <p>info@volveme.com · +54 9 11 5841-6365</p>
           </div>
         </div>
       </div>
 
-      <div ref={contenidoRef} className="presupuesto max-w-[820px] mx-auto bg-paper">
+      <div
+        ref={contenidoRef}
+        className="presupuesto max-w-[820px] mx-auto bg-paper"
+        style={esMobile ? estiloOculto : undefined}
+      >
         {/* ============ PÁGINA 1 — PORTADA ============ */}
         <section className="pres-page flex flex-col bg-paper">
           <div className="text-center pt-14 pb-6 px-10">
@@ -892,10 +983,15 @@ function Condicion({ texto }) {
   )
 }
 
-function MobileDato({ label, valor, icon: Icon }) {
+function MobileDato({ label, valor, icon: Icon, color }) {
   return (
-    <div className="flex items-center gap-3">
-      {Icon && <Icon size={18} strokeWidth={1.8} className="text-wine flex-shrink-0" />}
+    <div className="flex items-center gap-3.5">
+      {Icon && (
+        <div className="relative w-9 h-9 flex-shrink-0 flex items-center justify-center">
+          <span className="absolute w-7 h-7 rounded-full" style={{ backgroundColor: color || '#ff6a1a', opacity: 0.55 }} />
+          <Icon size={16} strokeWidth={1.8} className="relative text-ink" />
+        </div>
+      )}
       <div>
         <p className="text-[11px] uppercase tracking-wide text-ink-mid">{label}</p>
         <p className="text-base font-bold text-ink">{valor}</p>
