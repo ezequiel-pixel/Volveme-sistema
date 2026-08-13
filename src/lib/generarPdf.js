@@ -34,7 +34,11 @@ export async function generarPdfBlob(containerEl) {
     const imgData = canvas.toDataURL('image/jpeg', 0.92)
 
     if (i > 0) pdf.addPage()
-    pdf.addImage(imgData, 'JPEG', 0, 0, anchoPagina, altoPagina)
+    // El 'FAST' del final es clave — sin este parámetro, jsPDF guarda
+    // la imagen adentro del PDF completamente sin comprimir (cada
+    // página pesaba 24MB en crudo, pixel por pixel, ignorando que ya
+    // se la mandamos en JPEG). Con esto sí respeta la compresión.
+    pdf.addImage(imgData, 'JPEG', 0, 0, anchoPagina, altoPagina, undefined, 'FAST')
   }
 
   return pdf.output('blob')
@@ -68,7 +72,7 @@ export async function generarPdfMobileBlob(el) {
   // completo, y PNG sin comprimir con fotos pesa muchísimo (varios MB).
   // JPEG calidad 0.85 se ve prácticamente igual y pesa una fracción.
   const imgData = canvas.toDataURL('image/jpeg', 0.85)
-  pdf.addImage(imgData, 'JPEG', 0, 0, anchoMM, altoMM)
+  pdf.addImage(imgData, 'JPEG', 0, 0, anchoMM, altoMM, undefined, 'FAST')
 
   return pdf.output('blob')
 }
