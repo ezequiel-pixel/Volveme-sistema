@@ -708,6 +708,7 @@ export default function NuevaCotizacion() {
                   <LineaResumen label="Bebidas a preparar" valor={resultado.bebidasReales.toFixed(1)} />
                   <div className="border-t border-rule pt-3 space-y-2">
                     <LineaResumen label="Insumos" valor={money(resultado.totalInsumos)} />
+                    <LineaResumen label="Agua operativa" valor={money(resultado.costoAguaOperativa)} />
                     <LineaResumen label="Mano de obra" valor={money(resultado.totalManoDeObra)} />
                     <LineaResumen label="Amortización equipo" valor={money(resultado.amortizacionTotal)} />
                     <LineaResumen label="Operativos (flete/transporte, ART, RC)" valor={money(resultado.flete + resultado.art + resultado.clausulaRc)} />
