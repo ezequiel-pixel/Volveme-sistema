@@ -74,6 +74,7 @@ export default function EventoDetalle() {
             nivel: cot.nivel === 'premium' ? 'Premium' : 'Esencial',
             tamano_vaso: cot.tamano_vaso,
             cantidad_cafes_override: cot.cantidad_cafes_override,
+            sin_insumos: cot.sin_insumos,
             cantidad_baristas: cot.cantidad_baristas,
             tipo_barra: cot.tipo_barra,
             amortizacion_override: cot.amortizacion_override,
@@ -184,9 +185,9 @@ export default function EventoDetalle() {
                   sub={resultado.cantidadDias > 1 ? `≈ ${(resultado.litrosLecheTotal / resultado.cantidadDias).toFixed(2)} L/día` : null}
                 />
                 <InsumoLinea
-                  label="Agua"
-                  valor={`${resultado.litrosAguaTotal.toFixed(2)} L`}
-                  sub={resultado.cantidadDias > 1 ? `≈ ${(resultado.litrosAguaTotal / resultado.cantidadDias).toFixed(2)} L/día` : null}
+                  label="Agua (solo la de receta)"
+                  valor={`${resultado.litrosAguaTotal.toFixed(2)} L · ${resultado.cantidadBidonesAgua} bidón/es x20L`}
+                  sub="No incluye agua operativa de barra (caldera, limpieza, hielo) — calculalo aparte para eventos grandes"
                 />
                 <InsumoLinea
                   label={`Vasos (${cotizacion.tamano_vaso})`}
