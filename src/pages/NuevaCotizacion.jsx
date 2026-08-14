@@ -116,7 +116,7 @@ const money = (n) =>
 const defaultInputs = {
   nombre_cliente: '', nombre_evento: '', lugar: '', lugar_lat: null, lugar_lng: null, distancia_km: null,
   cantidad_pax: 25, nivel: 'Esencial', tamano_vaso: '6oz',
-  cantidad_cafes_override: '', cantidad_baristas: 1, tipo_barra: 'Barra chica 1 grupo',
+  cantidad_cafes_override: '', sin_insumos: false, cantidad_baristas: 1, tipo_barra: 'Barra chica 1 grupo',
   amortizacion_override: '', alquiler_maquina_extra: false, alquiler_molino_extra: false,
   calcos: false, logo_3d: false, costo_flete: 0, art: false, art_monto: '',
   clausula_rc_monto: 0, multiplicador: '', iva_pct: '', extra_barista_monto: '',
@@ -223,6 +223,7 @@ export default function NuevaCotizacion() {
           nivel: cot.nivel === 'premium' || cot.nivel === 'Premium' ? 'Premium' : 'Esencial',
           tamano_vaso: cot.tamano_vaso || '6oz',
           cantidad_cafes_override: cot.cantidad_cafes_override || '',
+          sin_insumos: cot.sin_insumos || false,
           cantidad_baristas: cot.cantidad_baristas || 1,
           tipo_barra: cot.tipo_barra || 'Barra chica 1 grupo',
           amortizacion_override: cot.amortizacion_override || '',
@@ -366,6 +367,7 @@ export default function NuevaCotizacion() {
       nivel: inputs.nivel.toLowerCase(),
       tamano_vaso: inputs.tamano_vaso,
       cantidad_cafes_override: inputs.cantidad_cafes_override ? Number(inputs.cantidad_cafes_override) : null,
+      sin_insumos: inputs.sin_insumos,
       cantidad_baristas: Number(inputs.cantidad_baristas) || 1,
       tipo_barra: inputs.tipo_barra,
       amortizacion_override: inputs.amortizacion_override ? Number(inputs.amortizacion_override) : null,
@@ -544,6 +546,11 @@ export default function NuevaCotizacion() {
               <Field label="Cantidad de cafés (dejar vacío = Pax × consumo)">
                 <input type="number" min="0" value={inputs.cantidad_cafes_override} onChange={(e) => update('cantidad_cafes_override', e.target.value)} className="input" />
               </Field>
+              <Checkbox
+                label="Sin insumos (el cliente pone café, leche y vasos — Volveme solo pone equipo, staff y logística)"
+                checked={inputs.sin_insumos}
+                onChange={(v) => update('sin_insumos', v)}
+              />
               <Row>
                 <Field label="Cantidad de baristas">
                   <input type="number" min="0" value={inputs.cantidad_baristas} onChange={(e) => update('cantidad_baristas', e.target.value)} className="input" />
