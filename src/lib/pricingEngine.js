@@ -8,6 +8,16 @@ const COSTO_VASO_X50_POR_TAMANO = {
   '12oz': 'costo_vaso_12oz_x50',
 }
 
+// Tamaño real de cada vaso en ml, para calcular agua OPERATIVA (la de
+// verdad usar en barra: caldera, dilución de americanos, limpieza de
+// lanza de vapor) — no confundir con el agua de RECETA (ml_agua_por_bebida
+// de la config), que es un volumen mucho más chico.
+const VASO_ML_POR_TAMANO = {
+  '6oz': 177,
+  '8oz': 237,
+  '12oz': 355,
+}
+
 function horasEntreHorarios(dia) {
   // Si el día tiene "cantidad de horas" cargada directamente (sin horario
   // específico), usamos ese valor tal cual. Si no, calculamos la diferencia
@@ -72,6 +82,20 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   // cálculo real de cuánta agua llevar a un evento grande.
   const bidonAguaLitros = 20
   const cantidadBidonesAgua = Math.ceil(litrosAguaTotal / bidonAguaLitros)
+
+  // ---- AGUA OPERATIVA (la real de barra, no la de receta) ----
+  // 40ml fijos por bebida (agua de máquina — purgado, backflush, limpieza
+  // de grupo, universal para cualquier bebida) + el tamaño completo del
+  // vaso (dilución de americanos, limpieza de lanza de vapor en bebidas
+  // con leche). Se asume que la mayoría de las bebidas de un evento son
+  // americano o con leche (no espresso solo), así el número no se queda
+  // corto. Siempre se calcula y siempre se cobra — no depende de
+  // "sin_insumos", porque el agua operativa la pone Volveme siempre.
+  const aguaOperativaMlPorBebida = 40 + (VASO_ML_POR_TAMANO[inputs.tamano_vaso] || 0)
+  const aguaOperativaLitrosTotal = (aguaOperativaMlPorBebida * bebidasReales) / 1000
+  const cantidadBidonesOperativos = Math.ceil(aguaOperativaLitrosTotal / bidonAguaLitros)
+  const costoAguaOperativa = cantidadBidonesOperativos * c.precio_bidon_agua_20l
+
   const cantidadVasos = Math.ceil(bebidasReales)
   const cajasVasos = cantidadVasos / 50
   const sobresAzucarTotal = Math.ceil(c.sobres_azucar_por_bebida * bebidasReales)
@@ -130,7 +154,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const costoTotalSinImprevistos =
     totalInsumos + totalManoDeObra + amortizacionTotal +
     alquilerMaquinaExtra + alquilerMolinoExtra + flete + art + clausulaRc +
-    extraDistancia
+    extraDistancia + costoAguaOperativa
 
   // Colchón de imprevistos — 5% por default, aplicado sobre el costo
   // total antes del margen (misma lógica que la planilla de costos real).
@@ -157,6 +181,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     costoEsencialPorBebida, bebidasEstimadas, bebidasReales,
     // cantidades físicas exactas
     gramosCafeTotal, kilosCafeTotal, litrosLecheTotal, litrosAguaTotal, cantidadBidonesAgua,
+    aguaOperativaLitrosTotal, cantidadBidonesOperativos, costoAguaOperativa,
     cantidadVasos, cajasVasos, sobresAzucarTotal, sobresEdulcoranteTotal,
     removedoresTotal, calcosTotal, logo3dTotal,
     // costos
