@@ -65,6 +65,13 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const litrosLecheTotal = mlLecheTotal / 1000
   const mlAguaTotal = c.ml_agua_por_bebida * bebidasReales
   const litrosAguaTotal = mlAguaTotal / 1000
+  // OJO: esto es solo el agua que va mezclada EN la bebida (para
+  // americanos, etc.) — no el agua operativa real de barra (rellenar
+  // caldera, backflush, limpieza, hielo, lavado de manos), que en la
+  // práctica es bastante más. Este número de bidones es un piso, no el
+  // cálculo real de cuánta agua llevar a un evento grande.
+  const bidonAguaLitros = 20
+  const cantidadBidonesAgua = Math.ceil(litrosAguaTotal / bidonAguaLitros)
   const cantidadVasos = Math.ceil(bebidasReales)
   const cajasVasos = cantidadVasos / 50
   const sobresAzucarTotal = Math.ceil(c.sobres_azucar_por_bebida * bebidasReales)
@@ -79,7 +86,14 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const costoCalcos = inputs.calcos ? bebidasReales * c.costo_calco_unidad : 0
   const costoLogo3d = inputs.logo_3d ? bebidasReales * c.costo_logo3d_unidad : 0
 
-  const totalInsumos = insumosEsenciales + recargoPremium + costoCalcos + costoLogo3d
+  // "Sin insumos" — para eventos donde Volveme pone equipo, staff y
+  // logística pero el café/leche/vasos los pone el cliente o un
+  // proveedor aparte (ej: eventos muy grandes tipo La Rural). Las
+  // cantidades físicas (kilosCafeTotal, litrosLecheTotal, etc.) se
+  // siguen calculando igual — quedan como referencia informativa — pero
+  // no se cobran: totalInsumos da $0 y no entra al costo del evento.
+  const totalInsumosCalculado = insumosEsenciales + recargoPremium + costoCalcos + costoLogo3d
+  const totalInsumos = inputs.sin_insumos ? 0 : totalInsumosCalculado
 
   const sueldoBaristas =
     inputs.cantidad_baristas * totalHoras * c.sueldo_barista_hora
@@ -142,7 +156,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     cantidadDias, totalHoras,
     costoEsencialPorBebida, bebidasEstimadas, bebidasReales,
     // cantidades físicas exactas
-    gramosCafeTotal, kilosCafeTotal, litrosLecheTotal, litrosAguaTotal,
+    gramosCafeTotal, kilosCafeTotal, litrosLecheTotal, litrosAguaTotal, cantidadBidonesAgua,
     cantidadVasos, cajasVasos, sobresAzucarTotal, sobresEdulcoranteTotal,
     removedoresTotal, calcosTotal, logo3dTotal,
     // costos
