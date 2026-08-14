@@ -185,9 +185,14 @@ export default function EventoDetalle() {
                   sub={resultado.cantidadDias > 1 ? `≈ ${(resultado.litrosLecheTotal / resultado.cantidadDias).toFixed(2)} L/día` : null}
                 />
                 <InsumoLinea
-                  label="Agua (solo la de receta)"
+                  label="Agua de receta"
                   valor={`${resultado.litrosAguaTotal.toFixed(2)} L · ${resultado.cantidadBidonesAgua} bidón/es x20L`}
-                  sub="No incluye agua operativa de barra (caldera, limpieza, hielo) — calculalo aparte para eventos grandes"
+                  sub="La que va mezclada en la bebida (americanos, etc.)"
+                />
+                <InsumoLinea
+                  label="Agua operativa"
+                  valor={`${resultado.aguaOperativaLitrosTotal.toFixed(1)} L · ${resultado.cantidadBidonesOperativos} bidón/es x20L`}
+                  sub={`Caldera, dilución, limpieza — $${Math.round(resultado.costoAguaOperativa).toLocaleString('es-AR')} ya incluido en el costo`}
                 />
                 <InsumoLinea
                   label={`Vasos (${cotizacion.tamano_vaso})`}
