@@ -169,10 +169,34 @@ export default function EventoDetalle() {
                 <Coffee size={13} /> Insumos necesarios (cantidad exacta)
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <InsumoLinea label="Café" valor={`${resultado.kilosCafeTotal.toFixed(2)} kg`} sub={`${Math.round(resultado.gramosCafeTotal)} g totales`} />
-                <InsumoLinea label="Leche" valor={`${resultado.litrosLecheTotal.toFixed(2)} L`} />
-                <InsumoLinea label="Agua" valor={`${resultado.litrosAguaTotal.toFixed(2)} L`} />
-                <InsumoLinea label={`Vasos (${cotizacion.tamano_vaso})`} valor={`${resultado.cantidadVasos} u.`} sub={`≈ ${Math.ceil(resultado.cajasVasos)} caja/s x50`} />
+                <InsumoLinea
+                  label="Café"
+                  valor={`${resultado.kilosCafeTotal.toFixed(2)} kg`}
+                  sub={
+                    resultado.cantidadDias > 1
+                      ? `${Math.round(resultado.gramosCafeTotal)} g totales · ≈ ${(resultado.kilosCafeTotal / resultado.cantidadDias).toFixed(2)} kg/día`
+                      : `${Math.round(resultado.gramosCafeTotal)} g totales`
+                  }
+                />
+                <InsumoLinea
+                  label="Leche"
+                  valor={`${resultado.litrosLecheTotal.toFixed(2)} L`}
+                  sub={resultado.cantidadDias > 1 ? `≈ ${(resultado.litrosLecheTotal / resultado.cantidadDias).toFixed(2)} L/día` : null}
+                />
+                <InsumoLinea
+                  label="Agua"
+                  valor={`${resultado.litrosAguaTotal.toFixed(2)} L`}
+                  sub={resultado.cantidadDias > 1 ? `≈ ${(resultado.litrosAguaTotal / resultado.cantidadDias).toFixed(2)} L/día` : null}
+                />
+                <InsumoLinea
+                  label={`Vasos (${cotizacion.tamano_vaso})`}
+                  valor={`${resultado.cantidadVasos} u.`}
+                  sub={
+                    resultado.cantidadDias > 1
+                      ? `≈ ${Math.ceil(resultado.cajasVasos)} caja/s x50 · ≈ ${Math.ceil(resultado.cantidadVasos / resultado.cantidadDias)} u./día`
+                      : `≈ ${Math.ceil(resultado.cajasVasos)} caja/s x50`
+                  }
+                />
                 <InsumoLinea label="Sobres de azúcar" valor={`${resultado.sobresAzucarTotal} u.`} />
                 <InsumoLinea label="Sobres de edulcorante" valor={`${resultado.sobresEdulcoranteTotal} u.`} />
                 <InsumoLinea label="Removedores" valor={`${resultado.removedoresTotal} u.`} />
@@ -181,6 +205,9 @@ export default function EventoDetalle() {
               </div>
               <p className="text-xs text-ink-light mt-4 pt-3 border-t border-rule">
                 Calculado sobre {resultado.bebidasReales.toFixed(1)} bebidas · Nivel {cotizacion.nivel}
+                {resultado.cantidadDias > 1 && (
+                  <> · ≈ {(resultado.bebidasReales / resultado.cantidadDias).toFixed(1)} bebidas por día (repartido parejo entre los {resultado.cantidadDias} días)</>
+                )}
               </p>
             </div>
           ) : (
