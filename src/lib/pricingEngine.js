@@ -50,7 +50,12 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     cafePorBebida + costoLecheAguaPorBebida + costoVasoPorBebida +
     azucarPorBebida + edulcorantePorBebida + removedorPorBebida
 
-  const bebidasEstimadas = inputs.cantidad_pax * c.consumo_por_persona
+  // Los pax son "por día" — si el evento dura 2 días, las mismas 200
+  // personas toman café los 2 días, así que el consumo real es el doble.
+  // Antes esto calculaba insumos para 200 personas UNA sola vez sin
+  // importar la cantidad de días del evento, subestimando café, leche,
+  // vasos, azúcar, etc. en cualquier evento de más de un día.
+  const bebidasEstimadas = inputs.cantidad_pax * c.consumo_por_persona * cantidadDias
   const bebidasReales = inputs.cantidad_cafes_override || bebidasEstimadas
 
   // ---- CANTIDADES FÍSICAS EXACTAS DE CADA INSUMO (para la ficha operativa) ----
