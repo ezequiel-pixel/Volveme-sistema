@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generarPdfBlob, generarPdfMobileBlob } from '../lib/generarPdf'
+import { generarPdfBlob, generarPdfMobileBlob, armarLinkWhatsapp } from '../lib/generarPdf'
 import {
-  Printer, ArrowLeft, Loader2, Smartphone,
+  Printer, ArrowLeft, Loader2, Smartphone, MessageCircle,
   Coffee, Heart, Leaf, Snowflake, Milk, Droplet, Candy, CheckCircle2,
   CalendarDays, MapPin, Clock, Users, Timer, Cookie,
 } from 'lucide-react'
@@ -185,6 +185,22 @@ export default function Presupuesto() {
     setEnviandoMobile(false)
   }
 
+  /** Abre WhatsApp con el chat de este cliente y un mensaje ya escrito,
+   * mencionando el tipo de evento y la fecha. No adjunta el PDF
+   * automáticamente (WhatsApp no lo permite desde una web) — la idea es
+   * bajar el PDF con los botones de arriba y adjuntarlo a mano acá, en
+   * el mismo chat que ya se abre listo. */
+  function handleAbrirWhatsapp() {
+    const primerDia = dias[0]
+    const mensaje =
+      `¡Hola ${cotizacion.clientes?.nombre || ''}! Te dejo el presupuesto para ` +
+      `${(cotizacion.nombre_evento || 'tu evento').toLowerCase()}` +
+      `${primerDia ? ` del ${formatFecha(primerDia.fecha)}` : ''}. Cualquier ajuste que necesites ` +
+      `(invitados, horario, algo puntual) lo vemos sin problema. Quedo atento a lo que necesites.`
+    const link = armarLinkWhatsapp(cotizacion.clientes?.telefono, mensaje)
+    window.open(link, '_blank')
+  }
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-ink-light text-sm">Cargando…</div>
   }
@@ -221,6 +237,13 @@ export default function Presupuesto() {
           >
             {enviandoMobile ? <Loader2 size={15} className="animate-spin" /> : <Smartphone size={15} />}
             <span>{enviandoMobile ? 'Generando…' : 'Descargar (Mobile)'}</span>
+          </button>
+          <button
+            onClick={handleAbrirWhatsapp}
+            className="flex items-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-3 sm:px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+            title="Abre el chat de este cliente en WhatsApp con un mensaje ya escrito — el PDF lo adjuntás a mano, desde lo que bajaste con los botones de al lado"
+          >
+            <MessageCircle size={15} /> <span>Abrir WhatsApp</span>
           </button>
         </div>
       </div>
