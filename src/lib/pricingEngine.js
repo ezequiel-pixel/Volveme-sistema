@@ -132,10 +132,18 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     0
   const amortizacionTotal = amortizacionDia * cantidadDias
 
-  const alquilerMaquinaExtra = inputs.alquiler_maquina_extra
-    ? c.tarifa_maquina_extra_dia * cantidadDias : 0
-  const alquilerMolinoExtra = inputs.alquiler_molino_extra
-    ? c.tarifa_molino_extra_dia * cantidadDias : 0
+  // Alquiler de equipo extra — por tipo específico y cantidad (antes
+  // era un simple on/off "alquiler máquina extra" genérico). Cada
+  // cantidad puede ser 0, 1 o 2, y se cobra por día del evento.
+  const cantidadMaquina1Grupo = Number(inputs.cantidad_maquina_1grupo_extra) || 0
+  const cantidadMaquina2Grupos = Number(inputs.cantidad_maquina_2grupos_extra) || 0
+  const cantidadMolinoExtra = Number(inputs.cantidad_molino_extra) || 0
+
+  const alquilerMaquina1Grupo = cantidadMaquina1Grupo * (c.tarifa_maquina_1grupo_dia ?? 200000) * cantidadDias
+  const alquilerMaquina2Grupos = cantidadMaquina2Grupos * (c.tarifa_maquina_2grupos_dia ?? 330000) * cantidadDias
+  const alquilerMolinoExtra = cantidadMolinoExtra * (c.tarifa_molino_dia ?? 130000) * cantidadDias
+
+  const alquilerEquipoExtra = alquilerMaquina1Grupo + alquilerMaquina2Grupos + alquilerMolinoExtra
 
   const flete = inputs.costo_flete || 0
   // "Seguro" y "ART" son el mismo concepto — el ART sigue siendo
@@ -153,7 +161,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
 
   const costoTotalSinImprevistos =
     totalInsumos + totalManoDeObra + amortizacionTotal +
-    alquilerMaquinaExtra + alquilerMolinoExtra + flete + art + clausulaRc +
+    alquilerEquipoExtra + flete + art + clausulaRc +
     extraDistancia + costoAguaOperativa
 
   // Colchón de imprevistos — 5% por default, aplicado sobre el costo
@@ -187,7 +195,9 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     // costos
     insumosEsenciales, recargoPremium, costoCalcos, costoLogo3d, totalInsumos,
     sueldoBaristas, viaticosBaristas, extraBaristaMonto, totalManoDeObra,
-    amortizacionDia, amortizacionTotal, alquilerMaquinaExtra, alquilerMolinoExtra,
+    amortizacionDia, amortizacionTotal,
+    cantidadMaquina1Grupo, cantidadMaquina2Grupos, cantidadMolinoExtra,
+    alquilerMaquina1Grupo, alquilerMaquina2Grupos, alquilerMolinoExtra, alquilerEquipoExtra,
     flete, art, clausulaRc,
     extraDistancia,
     costoTotalSinImprevistos, imprevistosPct, imprevistosMonto,
