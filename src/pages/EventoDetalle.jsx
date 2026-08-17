@@ -144,8 +144,9 @@ export default function EventoDetalle() {
             cantidad_baristas: cot.cantidad_baristas,
             tipo_barra: cot.tipo_barra,
             amortizacion_override: cot.amortizacion_override,
-            alquiler_maquina_extra: cot.alquiler_maquina_extra,
-            alquiler_molino_extra: cot.alquiler_molino_extra,
+            cantidad_maquina_1grupo_extra: cot.cantidad_maquina_1grupo_extra,
+            cantidad_maquina_2grupos_extra: cot.cantidad_maquina_2grupos_extra,
+            cantidad_molino_extra: cot.cantidad_molino_extra,
             calcos: cot.calcos,
             logo_3d: cot.logo_3d,
             costo_flete: cot.costo_flete,
@@ -298,8 +299,9 @@ export default function EventoDetalle() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
                 <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
-                <InfoItem label="Máquina extra" valor={cotizacion.alquiler_maquina_extra ? 'Sí' : 'No'} />
-                <InfoItem label="Molino extra" valor={cotizacion.alquiler_molino_extra ? 'Sí' : 'No'} />
+                <InfoItem label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
+                <InfoItem label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
+                <InfoItem label="Molino Faemma 500 extra" valor={cotizacion.cantidad_molino_extra > 0 ? `${cotizacion.cantidad_molino_extra}` : 'No'} />
                 <InfoItem label="ART" valor={cotizacion.art ? `Sí — ${money(cotizacion.art_monto)}` : 'No'} />
                 <InfoItem label="Costo de flete" valor={money(cotizacion.costo_flete)} />
               </div>
