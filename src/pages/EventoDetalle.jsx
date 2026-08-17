@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
-import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText } from 'lucide-react'
+import { armarLinkWhatsapp } from '../lib/generarPdf'
+import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -22,6 +23,8 @@ const estadoStyles = {
   cancelado: 'bg-coral-light text-coral',
 }
 
+const TIPO_LABEL = { barista: 'Barista', logistica: 'Logística', proveedor: 'Proveedor', otro: 'Otro' }
+
 export default function EventoDetalle() {
   const { id } = useParams()
   const [evento, setEvento] = useState(null)
@@ -29,6 +32,69 @@ export default function EventoDetalle() {
   const [cotizacion, setCotizacion] = useState(null)
   const [resultado, setResultado] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [asignaciones, setAsignaciones] = useState([])
+  const [staffDisponible, setStaffDisponible] = useState([])
+  const [formAsignacion, setFormAsignacion] = useState(null)
+
+  async function cargarStaff() {
+    const { data: asig } = await supabase
+      .from('evento_staff')
+      .select('*, staff(*)')
+      .eq('evento_id', id)
+      .order('created_at')
+    setAsignaciones(asig || [])
+
+    const { data: disponible } = await supabase
+      .from('staff')
+      .select('*')
+      .eq('activo', true)
+      .order('nombre')
+    setStaffDisponible(disponible || [])
+  }
+
+  async function asignarStaff() {
+    if (!formAsignacion?.staff_id) return
+    await supabase.from('evento_staff').insert({
+      evento_id: id,
+      staff_id: formAsignacion.staff_id,
+      fecha: formAsignacion.fecha || null,
+      rol_evento: formAsignacion.rol_evento || null,
+    })
+    setFormAsignacion(null)
+    cargarStaff()
+  }
+
+  async function desasignar(asignacionId) {
+    await supabase.from('evento_staff').delete().eq('id', asignacionId)
+    cargarStaff()
+  }
+
+  async function cambiarEstadoAsignacion(asignacionId, estado) {
+    await supabase.from('evento_staff').update({ estado }).eq('id', asignacionId)
+    cargarStaff()
+  }
+
+  /** Arma el mensaje de WhatsApp con toda la info del evento para esa
+   * persona puntual — si la asignación tiene un día específico, solo
+   * ese día; si no, todos los días del evento. */
+  function armarMensajeAsignacion(asignacion) {
+    const persona = asignacion.staff
+    const diaEspecifico = asignacion.fecha ? dias.find((d) => d.fecha === asignacion.fecha) : null
+
+    const lineaFechaHorario = diaEspecifico
+      ? `📅 ${formatFecha(diaEspecifico.fecha)}\n⏰ ${diaEspecifico.hora_inicio?.slice(0, 5)} a ${diaEspecifico.hora_fin?.slice(0, 5)}hs`
+      : dias.map((d) => `📅 ${formatFecha(d.fecha)} — ⏰ ${d.hora_inicio?.slice(0, 5)} a ${d.hora_fin?.slice(0, 5)}hs`).join('\n')
+
+    return (
+      `¡Hola ${persona.nombre.split(' ')[0]}! Te paso los datos del evento en el que quedaste asignado/a:\n\n` +
+      `📌 Cliente: ${evento.clientes?.nombre || evento.nombre}\n` +
+      `${lineaFechaHorario}\n` +
+      `📍 Lugar: ${evento.lugar || 'A confirmar'}\n` +
+      `👥 Invitados: ${evento.cantidad_personas || '—'} pax\n` +
+      (asignacion.rol_evento ? `🔧 Tu rol: ${asignacion.rol_evento}\n` : '') +
+      `\nCualquier duda, avisame. ¡Gracias!`
+    )
+  }
 
   useEffect(() => {
     async function cargar() {
@@ -95,6 +161,7 @@ export default function EventoDetalle() {
       setLoading(false)
     }
     cargar()
+    cargarStaff()
   }, [id])
 
   if (loading) return <div className="text-center py-24 text-ink-light text-sm">Cargando…</div>
@@ -238,6 +305,124 @@ export default function EventoDetalle() {
               </div>
             </div>
           )}
+
+          {/* Staff asignado */}
+          <div className="border border-rule rounded-lg p-5 bg-paper-card">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs uppercase tracking-wide text-ink-light flex items-center gap-1.5">
+                <UserPlus size={13} /> Staff asignado
+              </p>
+              <button
+                onClick={() => setFormAsignacion({ staff_id: '', fecha: '', rol_evento: '' })}
+                className="flex items-center gap-1 text-xs text-wine hover:underline"
+              >
+                <UserPlus size={13} /> Asignar
+              </button>
+            </div>
+
+            {asignaciones.length === 0 && (
+              <p className="text-sm text-ink-light">Todavía no asignaste a nadie a este evento.</p>
+            )}
+
+            <div className="space-y-2">
+              {asignaciones.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-3 border border-rule rounded px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink truncate">
+                      {a.staff?.nombre || 'Persona eliminada'}
+                      {a.rol_evento && <span className="text-ink-light font-normal"> — {a.rol_evento}</span>}
+                    </p>
+                    <p className="text-xs text-ink-light">
+                      {a.fecha ? formatFecha(a.fecha) : `Todo el evento (${dias.length} día${dias.length > 1 ? 's' : ''})`}
+                      {' · '}
+                      <span className={
+                        a.estado === 'confirmado' ? 'text-wine' : a.estado === 'rechazado' ? 'text-coral' : 'text-orange'
+                      }>
+                        {a.estado}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2.5 flex-shrink-0">
+                    {a.estado === 'asignado' && (
+                      <button onClick={() => cambiarEstadoAsignacion(a.id, 'confirmado')} className="text-xs text-ink-light hover:text-wine">
+                        Confirmar
+                      </button>
+                    )}
+                    {a.staff?.telefono && (
+                      <a
+                        href={armarLinkWhatsapp(a.staff.telefono, armarMensajeAsignacion(a))}
+                        target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-ink-mid hover:text-wine"
+                        title="Manda por WhatsApp toda la info del evento a esta persona"
+                      >
+                        <MessageCircle size={13} /> WhatsApp
+                      </a>
+                    )}
+                    <button onClick={() => desasignar(a.id)} className="text-ink-light hover:text-coral">
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {formAsignacion && (
+              <div className="mt-4 pt-4 border-t border-rule space-y-3">
+                <div>
+                  <label className="block text-xs text-ink-mid mb-1">Persona</label>
+                  <select
+                    className="input"
+                    value={formAsignacion.staff_id}
+                    onChange={(e) => setFormAsignacion((f) => ({ ...f, staff_id: e.target.value }))}
+                  >
+                    <option value="">Elegir…</option>
+                    {staffDisponible.map((p) => (
+                      <option key={p.id} value={p.id}>{p.nombre} — {TIPO_LABEL[p.tipo] || p.tipo}</option>
+                    ))}
+                  </select>
+                </div>
+                {dias.length > 1 && (
+                  <div>
+                    <label className="block text-xs text-ink-mid mb-1">Día (dejar vacío = todo el evento)</label>
+                    <select
+                      className="input"
+                      value={formAsignacion.fecha}
+                      onChange={(e) => setFormAsignacion((f) => ({ ...f, fecha: e.target.value }))}
+                    >
+                      <option value="">Todo el evento</option>
+                      {dias.map((d) => (
+                        <option key={d.fecha} value={d.fecha}>{formatFecha(d.fecha)}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs text-ink-mid mb-1">Rol (opcional)</label>
+                  <input
+                    className="input"
+                    placeholder="Barista principal, Ayudante, Flete…"
+                    value={formAsignacion.rol_evento}
+                    onChange={(e) => setFormAsignacion((f) => ({ ...f, rol_evento: e.target.value }))}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={asignarStaff}
+                    disabled={!formAsignacion.staff_id}
+                    className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
+                  >
+                    Asignar
+                  </button>
+                  <button
+                    onClick={() => setFormAsignacion(null)}
+                    className="border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Resumen económico interno (no va al cliente) */}
