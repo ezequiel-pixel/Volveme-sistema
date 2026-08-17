@@ -117,7 +117,7 @@ const defaultInputs = {
   nombre_cliente: '', nombre_evento: '', lugar: '', lugar_lat: null, lugar_lng: null, distancia_km: null,
   cantidad_pax: 25, nivel: 'Esencial', tamano_vaso: '6oz',
   cantidad_cafes_override: '', sin_insumos: false, cantidad_baristas: 1, tipo_barra: 'Barra chica 1 grupo',
-  amortizacion_override: '', alquiler_maquina_extra: false, alquiler_molino_extra: false,
+  amortizacion_override: '', cantidad_maquina_1grupo_extra: 0, cantidad_maquina_2grupos_extra: 0, cantidad_molino_extra: 0,
   calcos: false, logo_3d: false, costo_flete: 0, art: false, art_monto: '',
   clausula_rc_monto: 0, multiplicador: '', iva_pct: '', extra_barista_monto: '',
   extra_distancia: 0,
@@ -227,8 +227,9 @@ export default function NuevaCotizacion() {
           cantidad_baristas: cot.cantidad_baristas || 1,
           tipo_barra: cot.tipo_barra || 'Barra chica 1 grupo',
           amortizacion_override: cot.amortizacion_override || '',
-          alquiler_maquina_extra: cot.alquiler_maquina_extra || false,
-          alquiler_molino_extra: cot.alquiler_molino_extra || false,
+          cantidad_maquina_1grupo_extra: cot.cantidad_maquina_1grupo_extra || 0,
+          cantidad_maquina_2grupos_extra: cot.cantidad_maquina_2grupos_extra || 0,
+          cantidad_molino_extra: cot.cantidad_molino_extra || 0,
           calcos: cot.calcos || false,
           logo_3d: cot.logo_3d || false,
           costo_flete: cot.costo_flete || 0,
@@ -371,8 +372,9 @@ export default function NuevaCotizacion() {
       cantidad_baristas: Number(inputs.cantidad_baristas) || 1,
       tipo_barra: inputs.tipo_barra,
       amortizacion_override: inputs.amortizacion_override ? Number(inputs.amortizacion_override) : null,
-      alquiler_maquina_extra: inputs.alquiler_maquina_extra,
-      alquiler_molino_extra: inputs.alquiler_molino_extra,
+      cantidad_maquina_1grupo_extra: Number(inputs.cantidad_maquina_1grupo_extra) || 0,
+      cantidad_maquina_2grupos_extra: Number(inputs.cantidad_maquina_2grupos_extra) || 0,
+      cantidad_molino_extra: Number(inputs.cantidad_molino_extra) || 0,
       calcos: inputs.calcos,
       logo_3d: inputs.logo_3d,
       costo_flete: Number(inputs.costo_flete) || 0,
@@ -570,9 +572,34 @@ export default function NuevaCotizacion() {
                   placeholder="0"
                 />
               </Field>
-              <div className="flex gap-5 pt-1">
-                <Checkbox label="Alquiler máquina extra" checked={inputs.alquiler_maquina_extra} onChange={(v) => update('alquiler_maquina_extra', v)} />
-                <Checkbox label="Alquiler molino extra" checked={inputs.alquiler_molino_extra} onChange={(v) => update('alquiler_molino_extra', v)} />
+
+              {/* Alquiler de equipo extra — por tipo específico y
+                  cantidad (0, 1 o 2), no más un tilde genérico. */}
+              <div className="pt-2 border-t border-rule mt-1">
+                <p className="text-xs uppercase tracking-wide text-ink-light mb-3">Alquiler de equipo extra</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Field label="Máquina 1 grupo Faemma ($200.000/día c/u)">
+                    <select className="input" value={inputs.cantidad_maquina_1grupo_extra} onChange={(e) => update('cantidad_maquina_1grupo_extra', e.target.value)}>
+                      <option value={0}>0</option>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                    </select>
+                  </Field>
+                  <Field label="Máquina 2 grupos Casadio Nettuno ($330.000/día c/u)">
+                    <select className="input" value={inputs.cantidad_maquina_2grupos_extra} onChange={(e) => update('cantidad_maquina_2grupos_extra', e.target.value)}>
+                      <option value={0}>0</option>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                    </select>
+                  </Field>
+                  <Field label="Molino Faemma 500 ($130.000/día c/u)">
+                    <select className="input" value={inputs.cantidad_molino_extra} onChange={(e) => update('cantidad_molino_extra', e.target.value)}>
+                      <option value={0}>0</option>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                    </select>
+                  </Field>
+                </div>
               </div>
             </SectionCard>
 
@@ -711,6 +738,9 @@ export default function NuevaCotizacion() {
                     <LineaResumen label="Agua operativa" valor={money(resultado.costoAguaOperativa)} />
                     <LineaResumen label="Mano de obra" valor={money(resultado.totalManoDeObra)} />
                     <LineaResumen label="Amortización equipo" valor={money(resultado.amortizacionTotal)} />
+                    {resultado.alquilerEquipoExtra > 0 && (
+                      <LineaResumen label="Alquiler equipo extra" valor={money(resultado.alquilerEquipoExtra)} />
+                    )}
                     <LineaResumen label="Operativos (flete/transporte, ART, RC)" valor={money(resultado.flete + resultado.art + resultado.clausulaRc)} />
                     <LineaResumen label="Extra distancia" valor={money(resultado.extraDistancia)} />
                     <LineaResumen label="Calcos + Logo 3D" valor={money(resultado.costoCalcos + resultado.costoLogo3d)} />
