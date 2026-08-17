@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { armarLinkWhatsapp } from '../lib/generarPdf'
-import { Plus, Pencil, Trash2, MessageCircle, X, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, MessageCircle, Mail, X, Search, Wallet } from 'lucide-react'
 
 const TIPO_LABEL = {
   barista: 'Barista',
@@ -25,6 +25,7 @@ const VACIO = {
   tipo: 'barista',
   nivel: '',
   categoria_proveedor: '',
+  alias_mercado_pago: '',
   notas: '',
   activo: true,
 }
@@ -54,6 +55,7 @@ export default function Staff() {
       tipo: form.tipo,
       nivel: form.nivel || null,
       categoria_proveedor: form.tipo === 'proveedor' ? (form.categoria_proveedor || null) : null,
+      alias_mercado_pago: form.alias_mercado_pago || null,
       notas: form.notas || null,
       activo: form.activo,
     }
@@ -138,46 +140,55 @@ export default function Staff() {
       )}
 
       {!loading && filtrado.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtrado.map((persona) => (
             <div
               key={persona.id}
-              className={`border border-rule rounded-lg bg-paper-card p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 ${!persona.activo ? 'opacity-50' : ''}`}
+              className={`border border-rule rounded-lg bg-paper-card p-4 ${!persona.activo ? 'opacity-50' : ''}`}
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <p className="font-medium text-ink">{persona.nombre}</p>
-                  <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${TIPO_STYLES[persona.tipo]}`}>
-                    {TIPO_LABEL[persona.tipo]}
-                  </span>
-                  {persona.nivel && <span className="text-[10px] text-ink-light border border-rule rounded-full px-2 py-0.5">{persona.nivel}</span>}
-                  {persona.categoria_proveedor && <span className="text-[10px] text-ink-light border border-rule rounded-full px-2 py-0.5">{persona.categoria_proveedor}</span>}
-                  {!persona.activo && <span className="text-[10px] text-coral">Inactivo</span>}
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    <p className="font-display text-lg text-ink leading-none">{persona.nombre}</p>
+                    <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${TIPO_STYLES[persona.tipo]}`}>
+                      {TIPO_LABEL[persona.tipo]}
+                    </span>
+                    {persona.nivel && <span className="text-[10px] text-ink-light border border-rule rounded-full px-2 py-0.5">{persona.nivel}</span>}
+                    {persona.categoria_proveedor && <span className="text-[10px] text-ink-light border border-rule rounded-full px-2 py-0.5">{persona.categoria_proveedor}</span>}
+                    {!persona.activo && <span className="text-[10px] text-coral font-medium">Inactivo</span>}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                    <CampoInfo label="Teléfono" valor={persona.telefono} href={persona.telefono ? `tel:${persona.telefono}` : null} />
+                    <CampoInfo label="Email" valor={persona.email} href={persona.email ? `mailto:${persona.email}` : null} />
+                    <CampoInfo label="Alias MP" valor={persona.alias_mercado_pago} icon={Wallet} />
+                  </div>
+
+                  {persona.notas && <p className="text-xs text-ink-mid mt-3 pt-3 border-t border-rule">{persona.notas}</p>}
                 </div>
-                <p className="text-xs text-ink-light">
-                  {persona.telefono || 'Sin teléfono'}{persona.email ? ` · ${persona.email}` : ''}
-                </p>
-                {persona.notas && <p className="text-xs text-ink-mid mt-1">{persona.notas}</p>}
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {persona.telefono && (
-                  <a
-                    href={armarLinkWhatsapp(persona.telefono, `¡Hola ${persona.nombre.split(' ')[0]}!`)}
-                    target="_blank" rel="noreferrer"
-                    className="flex items-center gap-1 text-xs text-ink-mid hover:text-wine"
-                  >
-                    <MessageCircle size={13} /> WhatsApp
-                  </a>
-                )}
-                <button onClick={() => setForm({ ...VACIO, ...persona })} className="text-ink-light hover:text-ink">
-                  <Pencil size={14} />
-                </button>
-                <button onClick={() => toggleActivo(persona)} className="text-xs text-ink-light hover:text-ink">
-                  {persona.activo ? 'Desactivar' : 'Activar'}
-                </button>
-                <button onClick={() => eliminar(persona)} className="text-ink-light hover:text-coral">
-                  <Trash2 size={14} />
-                </button>
+
+                <div className="flex sm:flex-col items-center sm:items-end gap-3 flex-shrink-0">
+                  {persona.telefono && (
+                    <a
+                      href={armarLinkWhatsapp(persona.telefono, `¡Hola ${persona.nombre.split(' ')[0]}!`)}
+                      target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1.5 bg-wine text-paper text-xs rounded px-3 py-1.5 hover:bg-wine-mid transition-colors flex-shrink-0"
+                    >
+                      <MessageCircle size={13} /> WhatsApp
+                    </a>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setForm({ ...VACIO, ...persona })} className="text-ink-light hover:text-ink" title="Editar">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => toggleActivo(persona)} className="text-[11px] text-ink-light hover:text-ink whitespace-nowrap">
+                      {persona.activo ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button onClick={() => eliminar(persona)} className="text-ink-light hover:text-coral" title="Eliminar">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
@@ -187,6 +198,34 @@ export default function Staff() {
       {form && <FormModal form={form} setForm={setForm} onGuardar={guardar} onCerrar={() => setForm(null)} />}
     </div>
   )
+}
+
+function CampoInfo({ label, valor, href, icon: Icon }) {
+  if (!valor) {
+    return (
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-ink-light mb-0.5">{label}</p>
+        <p className="text-sm text-ink-light/60">—</p>
+      </div>
+    )
+  }
+  const contenido = (
+    <>
+      <p className="text-[10px] uppercase tracking-wide text-ink-light mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-ink flex items-center gap-1">
+        {Icon && <Icon size={12} className="text-ink-light flex-shrink-0" />}
+        <span className="truncate">{valor}</span>
+      </p>
+    </>
+  )
+  if (href) {
+    return (
+      <a href={href} className="block hover:opacity-70 transition-opacity min-w-0">
+        {contenido}
+      </a>
+    )
+  }
+  return <div className="min-w-0">{contenido}</div>
 }
 
 function FormModal({ form, setForm, onGuardar, onCerrar }) {
@@ -242,6 +281,11 @@ function FormModal({ form, setForm, onGuardar, onCerrar }) {
               <input className="input" placeholder="Flete, Pastelería, Sonido…" value={form.categoria_proveedor} onChange={(e) => set('categoria_proveedor', e.target.value)} />
             </div>
           )}
+
+          <div>
+            <label className="block text-xs text-ink-mid mb-1">Alias de Mercado Pago</label>
+            <input className="input" placeholder="ej: francisco.barista.mp" value={form.alias_mercado_pago} onChange={(e) => set('alias_mercado_pago', e.target.value)} />
+          </div>
 
           <div>
             <label className="block text-xs text-ink-mid mb-1">Notas</label>
