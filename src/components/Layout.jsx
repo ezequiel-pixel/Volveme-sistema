@@ -6,6 +6,7 @@ const navItems = [
   { to: '/cotizaciones', label: 'Cotizaciones' },
   { to: '/eventos', label: 'Eventos' },
   { to: '/cafe-del-mes', label: 'Café del mes' },
+  { to: '/staff', label: 'Staff' },
   // Próximos módulos se agregan acá: Stock, Compras, Facturación…
 ]
 
