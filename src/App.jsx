@@ -9,6 +9,7 @@ import CotizacionDetalle from './pages/CotizacionDetalle'
 import NuevaCotizacion from './pages/NuevaCotizacion'
 import Presupuesto from './pages/Presupuesto'
 import CafeDelMes from './pages/CafeDelMes'
+import Staff from './pages/Staff'
 import Layout from './components/Layout'
 import ComingSoon from './components/ComingSoon'
 
@@ -40,7 +41,7 @@ export default function App() {
         <Route path="/cotizaciones/nueva" element={<NuevaCotizacion />} />
         <Route path="/cotizaciones/:id" element={<CotizacionDetalle />} />
         <Route path="/cafe-del-mes" element={<CafeDelMes />} />
-        <Route path="/staff" element={<ComingSoon title="Staff" />} />
+        <Route path="/staff" element={<Staff />} />
         <Route path="/equipamiento" element={<ComingSoon title="Equipamiento" />} />
         <Route path="/stock" element={<ComingSoon title="Insumos y Stock" />} />
         <Route path="/compras" element={<ComingSoon title="Compras" />} />
