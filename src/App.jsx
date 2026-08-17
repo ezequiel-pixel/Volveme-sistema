@@ -10,6 +10,9 @@ import NuevaCotizacion from './pages/NuevaCotizacion'
 import Presupuesto from './pages/Presupuesto'
 import CafeDelMes from './pages/CafeDelMes'
 import Staff from './pages/Staff'
+import Stock from './pages/Stock'
+import Compras from './pages/Compras'
+import Facturacion from './pages/Facturacion'
 import Layout from './components/Layout'
 import ComingSoon from './components/ComingSoon'
 
@@ -43,9 +46,9 @@ export default function App() {
         <Route path="/cafe-del-mes" element={<CafeDelMes />} />
         <Route path="/staff" element={<Staff />} />
         <Route path="/equipamiento" element={<ComingSoon title="Equipamiento" />} />
-        <Route path="/stock" element={<ComingSoon title="Insumos y Stock" />} />
-        <Route path="/compras" element={<ComingSoon title="Compras" />} />
-        <Route path="/facturacion" element={<ComingSoon title="Facturación y Pagos" />} />
+        <Route path="/stock" element={<Stock />} />
+        <Route path="/compras" element={<Compras />} />
+        <Route path="/facturacion" element={<Facturacion />} />
         <Route path="/productos" element={<ComingSoon title="Productos" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

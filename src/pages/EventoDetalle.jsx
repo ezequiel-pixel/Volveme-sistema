@@ -59,6 +59,8 @@ export default function EventoDetalle() {
       staff_id: formAsignacion.staff_id,
       fecha: formAsignacion.fecha || null,
       rol_evento: formAsignacion.rol_evento || null,
+      costo_extra: formAsignacion.costo_extra ? Number(formAsignacion.costo_extra) : null,
+      costo_extra_desc: formAsignacion.costo_extra_desc || null,
     })
     setFormAsignacion(null)
     cargarStaff()
@@ -342,6 +344,9 @@ export default function EventoDetalle() {
                       }>
                         {a.estado}
                       </span>
+                      {a.costo_extra > 0 && (
+                        <span className="text-orange"> · +{money(a.costo_extra)}{a.costo_extra_desc ? ` (${a.costo_extra_desc})` : ''}</span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2.5 flex-shrink-0">
@@ -406,6 +411,27 @@ export default function EventoDetalle() {
                     value={formAsignacion.rol_evento}
                     onChange={(e) => setFormAsignacion((f) => ({ ...f, rol_evento: e.target.value }))}
                   />
+                </div>
+                {/* Costo extra puntual — nafta, peajes, lo que no es
+                    "hora trabajada" y por eso no sale de tarifa_hora.
+                    Se ve reflejado directo en Facturación → Pagos a staff. */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-ink-mid mb-1">Costo extra (opcional)</label>
+                    <input
+                      className="input" type="number" min="0" placeholder="Nafta, peajes…"
+                      value={formAsignacion.costo_extra || ''}
+                      onChange={(e) => setFormAsignacion((f) => ({ ...f, costo_extra: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-mid mb-1">Concepto del extra</label>
+                    <input
+                      className="input" placeholder="Nafta ida y vuelta…"
+                      value={formAsignacion.costo_extra_desc || ''}
+                      onChange={(e) => setFormAsignacion((f) => ({ ...f, costo_extra_desc: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button
