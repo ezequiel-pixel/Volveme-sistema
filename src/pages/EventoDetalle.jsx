@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
 import { armarLinkWhatsapp } from '../lib/generarPdf'
-import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -184,15 +184,23 @@ export default function EventoDetalle() {
           <h1 className="font-display text-3xl mb-2">{evento.nombre}</h1>
           <span className={`text-xs px-2.5 py-1 rounded-full ${estadoStyles[evento.estado]}`}>{evento.estado}</span>
         </div>
-        {evento.cotizacion_id && (
+        <div className="flex flex-wrap gap-2 flex-shrink-0">
+          {evento.cotizacion_id && (
+            <Link
+              to={`/cotizaciones/${evento.cotizacion_id}/presupuesto`}
+              target="_blank"
+              className="flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+            >
+              <FileText size={15} /> Ver presupuesto
+            </Link>
+          )}
           <Link
-            to={`/cotizaciones/${evento.cotizacion_id}/presupuesto`}
-            target="_blank"
-            className="flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors flex-shrink-0"
+            to={`/eventos/${evento.id}/ficha`}
+            className="flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors"
           >
-            <FileText size={15} /> Ver presupuesto
+            <ClipboardList size={15} /> Ficha operativa
           </Link>
-        )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
@@ -415,7 +423,7 @@ export default function EventoDetalle() {
                 {/* Costo extra puntual — nafta, peajes, lo que no es
                     "hora trabajada" y por eso no sale de tarifa_hora.
                     Se ve reflejado directo en Facturación → Pagos a staff. */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-ink-mid mb-1">Costo extra (opcional)</label>
                     <input

@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Eventos from './pages/Eventos'
 import EventoDetalle from './pages/EventoDetalle'
+import FichaOperativa from './pages/FichaOperativa'
 import Cotizaciones from './pages/Cotizaciones'
 import CotizacionDetalle from './pages/CotizacionDetalle'
 import NuevaCotizacion from './pages/NuevaCotizacion'
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/eventos" element={<Eventos />} />
         <Route path="/eventos/:id" element={<EventoDetalle />} />
+        <Route path="/eventos/:id/ficha" element={<FichaOperativa />} />
         <Route path="/cotizaciones" element={<Cotizaciones />} />
         <Route path="/cotizaciones/nueva" element={<NuevaCotizacion />} />
         <Route path="/cotizaciones/:id" element={<CotizacionDetalle />} />
