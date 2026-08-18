@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { calcularNecesidadesInsumos } from '../lib/necesidadesInsumos'
+import { armarLinkWhatsapp } from '../lib/generarPdf'
 import PanelNecesidades from '../components/PanelNecesidades'
-import { Plus, Pencil, Trash2, X, Search, AlertTriangle, PackagePlus, ClipboardList, Table2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Search, AlertTriangle, PackagePlus, ClipboardList, Table2, MessageCircle, Users2 } from 'lucide-react'
 
 const CATEGORIA_LABEL = {
   leche: 'Leche',
@@ -21,7 +22,7 @@ const VACIO = {
   id: null,
   nombre: '',
   categoria: 'leche',
-  proveedor: '',
+  proveedor_id: '',
   tipo_paquete: 'Unidad',
   cantidad_por_paquete: 1,
   unidad_medida: 'unidad',
@@ -29,6 +30,20 @@ const VACIO = {
   iva_incluido: true,
   stock_actual: 0,
   stock_minimo: 0,
+  notas: '',
+  activo: true,
+}
+
+const PROVEEDOR_VACIO = {
+  id: null,
+  nombre_fantasia: '',
+  razon_social: '',
+  cuit: '',
+  alias_pago: '',
+  cbu: '',
+  forma_pago: '',
+  telefono: '',
+  email: '',
   notas: '',
   activo: true,
 }
@@ -47,12 +62,50 @@ export default function Stock() {
   // rápido, pensada para que la use cualquiera sin explicación).
   // 'catalogo' = la vista completa con costos y proveedores (para vos).
   const [vista, setVista] = useState('chequeo')
+  const [proveedores, setProveedores] = useState([])
+  const [formProveedor, setFormProveedor] = useState(null)
+  const [mostrarProveedores, setMostrarProveedores] = useState(false)
 
   async function cargar() {
     setLoading(true)
-    const { data } = await supabase.from('insumos').select('*').order('categoria').order('nombre')
+    const { data } = await supabase.from('insumos').select('*, proveedores(nombre_fantasia, telefono, alias_pago)').order('categoria').order('nombre')
     setInsumos(data || [])
     setLoading(false)
+  }
+
+  async function cargarProveedores() {
+    const { data } = await supabase.from('proveedores').select('*').order('nombre_fantasia')
+    setProveedores(data || [])
+  }
+
+  async function guardarProveedor() {
+    const payload = {
+      nombre_fantasia: formProveedor.nombre_fantasia,
+      razon_social: formProveedor.razon_social || null,
+      cuit: formProveedor.cuit || null,
+      alias_pago: formProveedor.alias_pago || null,
+      cbu: formProveedor.cbu || null,
+      forma_pago: formProveedor.forma_pago || null,
+      telefono: formProveedor.telefono || null,
+      email: formProveedor.email || null,
+      notas: formProveedor.notas || null,
+      activo: formProveedor.activo,
+    }
+    if (formProveedor.id) {
+      await supabase.from('proveedores').update(payload).eq('id', formProveedor.id)
+    } else {
+      await supabase.from('proveedores').insert(payload)
+    }
+    setFormProveedor(null)
+    cargarProveedores()
+    cargar()
+  }
+
+  async function eliminarProveedor(p) {
+    if (!confirm(`¿Eliminar a ${p.nombre_fantasia}? Los insumos que lo tenían cargado quedan sin proveedor asignado.`)) return
+    await supabase.from('proveedores').delete().eq('id', p.id)
+    cargarProveedores()
+    cargar()
   }
 
   async function cargarNecesidades() {
@@ -65,13 +118,14 @@ export default function Stock() {
   useEffect(() => {
     cargar()
     cargarNecesidades()
+    cargarProveedores()
   }, [])
 
   async function guardar() {
     const payload = {
       nombre: form.nombre,
       categoria: form.categoria,
-      proveedor: form.proveedor || null,
+      proveedor_id: form.proveedor_id || null,
       tipo_paquete: form.tipo_paquete,
       cantidad_por_paquete: Number(form.cantidad_por_paquete) || 1,
       unidad_medida: form.unidad_medida,
@@ -125,7 +179,7 @@ export default function Stock() {
 
     await supabase.from('compras').insert({
       insumo_id: formReponer.insumo.id,
-      proveedor: formReponer.proveedor || formReponer.insumo.proveedor || null,
+      proveedor_id: formReponer.insumo.proveedor_id || null,
       cantidad_paquetes: cantidad,
       precio_unitario_pagado: precio,
       fecha_compra: new Date().toISOString().slice(0, 10),
@@ -148,7 +202,7 @@ export default function Stock() {
   const filtrado = insumos.filter((i) => {
     if (filtroCategoria !== 'todos' && i.categoria !== filtroCategoria) return false
     if (soloStockBajo && !esStockBajo(i)) return false
-    if (busqueda && !i.nombre.toLowerCase().includes(busqueda.toLowerCase()) && !(i.proveedor || '').toLowerCase().includes(busqueda.toLowerCase())) return false
+    if (busqueda && !i.nombre.toLowerCase().includes(busqueda.toLowerCase()) && !(i.proveedores?.nombre_fantasia || '').toLowerCase().includes(busqueda.toLowerCase())) return false
     return true
   })
 
@@ -161,12 +215,20 @@ export default function Stock() {
           <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Módulo Stock</p>
           <h1 className="font-display text-2xl">Insumos y proveedores</h1>
         </div>
-        <button
-          onClick={() => setForm({ ...VACIO })}
-          className="flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors flex-shrink-0"
-        >
-          <Plus size={15} /> Agregar insumo
-        </button>
+        <div className="flex gap-2 flex-shrink-0">
+          <button
+            onClick={() => setMostrarProveedores(true)}
+            className="flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+          >
+            <Users2 size={15} /> Proveedores
+          </button>
+          <button
+            onClick={() => setForm({ ...VACIO })}
+            className="flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors"
+          >
+            <Plus size={15} /> Agregar insumo
+          </button>
+        </div>
       </div>
 
       <PanelNecesidades necesidades={necesidades} cargando={cargandoNecesidades} />
@@ -220,13 +282,32 @@ export default function Stock() {
         />
       )}
 
-      {form && <FormModal form={form} setForm={setForm} onGuardar={guardar} onCerrar={() => setForm(null)} />}
+      {form && (
+        <FormModal
+          form={form}
+          setForm={setForm}
+          proveedores={proveedores}
+          onAbrirProveedores={() => setMostrarProveedores(true)}
+          onGuardar={guardar}
+          onCerrar={() => setForm(null)}
+        />
+      )}
       {formReponer && (
         <FormReponer
           formReponer={formReponer}
           setFormReponer={setFormReponer}
           onConfirmar={confirmarReposicion}
           onCerrar={() => setFormReponer(null)}
+        />
+      )}
+      {mostrarProveedores && (
+        <ModalProveedores
+          proveedores={proveedores}
+          formProveedor={formProveedor}
+          setFormProveedor={setFormProveedor}
+          onGuardar={guardarProveedor}
+          onEliminar={eliminarProveedor}
+          onCerrar={() => { setMostrarProveedores(false); setFormProveedor(null) }}
         />
       )}
     </div>
@@ -426,7 +507,7 @@ function VistaCatalogo({
                     onToggleActivo={() => toggleActivo(item)}
                     onEliminar={() => eliminar(item)}
                     onReponer={() => setFormReponer({
-                      insumo: item, cantidad_paquetes: 1, precio_unitario_pagado: item.precio_paquete, proveedor: item.proveedor || '',
+                      insumo: item, cantidad_paquetes: 1, precio_unitario_pagado: item.precio_paquete,
                     })}
                   />
                 ))}
@@ -444,7 +525,7 @@ function VistaCatalogo({
                 onToggleActivo={() => toggleActivo(item)}
                 onEliminar={() => eliminar(item)}
                 onReponer={() => setFormReponer({
-                  insumo: item, cantidad_paquetes: 1, precio_unitario_pagado: item.precio_paquete, proveedor: item.proveedor || '',
+                  insumo: item, cantidad_paquetes: 1, precio_unitario_pagado: item.precio_paquete,
                 })}
               />
             ))}
@@ -462,7 +543,20 @@ function FilaInsumo({ item, stockBajo, onEditar, onToggleActivo, onEliminar, onR
         <p className="font-medium text-ink">{item.nombre}</p>
         <p className="text-xs text-ink-light">{CATEGORIA_LABEL[item.categoria]}{!item.iva_incluido && ' · +IVA'}</p>
       </td>
-      <td className="px-4 py-3 text-ink-mid">{item.proveedor || <span className="text-ink-light">—</span>}</td>
+      <td className="px-4 py-3 text-ink-mid">
+        {item.proveedores?.nombre_fantasia
+          ? (
+            <span className="flex items-center gap-1.5">
+              {item.proveedores.nombre_fantasia}
+              {item.proveedores.telefono && (
+                <a href={armarLinkWhatsapp(item.proveedores.telefono, `¡Hola! Te quería hacer un pedido de ${item.nombre}.`)} target="_blank" rel="noreferrer" className="text-ink-light hover:text-wine" title="WhatsApp al proveedor">
+                  <MessageCircle size={13} />
+                </a>
+              )}
+            </span>
+          )
+          : <span className="text-ink-light">—</span>}
+      </td>
       <td className="px-4 py-3 text-ink-mid">{item.tipo_paquete}</td>
       <td className="px-4 py-3 text-right text-ink-mid">{money(item.precio_paquete)}</td>
       <td className="px-4 py-3 text-right text-ink font-medium">
@@ -496,7 +590,7 @@ function FilaInsumoMobile({ item, stockBajo, onEditar, onToggleActivo, onElimina
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
           <p className="font-medium text-ink">{item.nombre}</p>
-          <p className="text-xs text-ink-light">{CATEGORIA_LABEL[item.categoria]}{item.proveedor ? ` · ${item.proveedor}` : ''}</p>
+          <p className="text-xs text-ink-light">{CATEGORIA_LABEL[item.categoria]}{item.proveedores?.nombre_fantasia ? ` · ${item.proveedores.nombre_fantasia}` : ''}</p>
         </div>
         {stockBajo && (
           <span className="flex-shrink-0 flex items-center gap-1 text-[10px] text-coral bg-coral-light rounded-full px-2 py-0.5">
@@ -538,12 +632,11 @@ function FormReponer({ formReponer, setFormReponer, onConfirmar, onCerrar }) {
           <h2 className="font-display text-xl flex items-center gap-2"><PackagePlus size={18} /> Reponer stock</h2>
           <button onClick={onCerrar} className="text-ink-light hover:text-ink"><X size={18} /></button>
         </div>
-        <p className="text-sm text-ink-mid mb-4">{formReponer.insumo.nombre} — {formReponer.insumo.tipo_paquete}</p>
+        <p className="text-sm text-ink-mid mb-4">
+          {formReponer.insumo.nombre} — {formReponer.insumo.tipo_paquete}
+          {formReponer.insumo.proveedores?.nombre_fantasia && ` · ${formReponer.insumo.proveedores.nombre_fantasia}`}
+        </p>
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-ink-mid mb-1">Proveedor</label>
-            <input className="input" value={formReponer.proveedor} onChange={(e) => set('proveedor', e.target.value)} />
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-ink-mid mb-1">Cantidad de paquetes</label>
@@ -568,7 +661,7 @@ function FormReponer({ formReponer, setFormReponer, onConfirmar, onCerrar }) {
   )
 }
 
-function FormModal({ form, setForm, onGuardar, onCerrar }) {
+function FormModal({ form, setForm, proveedores, onAbrirProveedores, onGuardar, onCerrar }) {
   function set(campo, valor) {
     setForm((f) => ({ ...f, [campo]: valor }))
   }
@@ -603,8 +696,16 @@ function FormModal({ form, setForm, onGuardar, onCerrar }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-ink-mid mb-1">Proveedor</label>
-              <input className="input" placeholder="ej: Tregar" value={form.proveedor} onChange={(e) => set('proveedor', e.target.value)} />
+              <label className="block text-xs text-ink-mid mb-1 flex items-center justify-between">
+                Proveedor
+                <button type="button" onClick={onAbrirProveedores} className="text-wine hover:underline normal-case font-normal">+ Nuevo / gestionar</button>
+              </label>
+              <select className="input" value={form.proveedor_id || ''} onChange={(e) => set('proveedor_id', e.target.value)}>
+                <option value="">Sin proveedor</option>
+                {proveedores.map((p) => (
+                  <option key={p.id} value={p.id}>{p.nombre_fantasia}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -669,6 +770,143 @@ function FormModal({ form, setForm, onGuardar, onCerrar }) {
           <button
             onClick={onGuardar}
             disabled={!form.nombre}
+            className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
+          >
+            Guardar
+          </button>
+          <button onClick={onCerrar} className="border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Fichas de proveedor — razón social, alias de pago, forma de pago,
+ * WhatsApp. Vive dentro de Stock (no es un módulo aparte en el menú)
+ * porque solo tiene sentido en el contexto de a quién le comprás los
+ * insumos. Lista + formulario en el mismo modal, simple. */
+function ModalProveedores({ proveedores, formProveedor, setFormProveedor, onGuardar, onEliminar, onCerrar }) {
+  if (formProveedor) {
+    return (
+      <FormProveedor
+        form={formProveedor}
+        setForm={setFormProveedor}
+        onGuardar={onGuardar}
+        onCerrar={() => setFormProveedor(null)}
+      />
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-4 z-50" onClick={onCerrar}>
+      <div className="bg-paper-card border border-rule rounded-lg p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-display text-xl flex items-center gap-2"><Users2 size={18} /> Proveedores</h2>
+          <button onClick={onCerrar} className="text-ink-light hover:text-ink"><X size={18} /></button>
+        </div>
+
+        <button
+          onClick={() => setFormProveedor({ ...PROVEEDOR_VACIO })}
+          className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-3 py-1.5 mb-4"
+        >
+          <Plus size={14} /> Nuevo proveedor
+        </button>
+
+        {proveedores.length === 0 && <p className="text-sm text-ink-light">No hay proveedores cargados todavía.</p>}
+
+        <div className="space-y-2">
+          {proveedores.map((p) => (
+            <div key={p.id} className="border border-rule rounded-lg p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-ink truncate">{p.nombre_fantasia}</p>
+                <p className="text-xs text-ink-light truncate">
+                  {p.telefono || 'Sin teléfono'}{p.alias_pago ? ` · MP: ${p.alias_pago}` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {p.telefono && (
+                  <a href={armarLinkWhatsapp(p.telefono, `¡Hola! Te quería hacer un pedido.`)} target="_blank" rel="noreferrer" className="text-ink-light hover:text-wine">
+                    <MessageCircle size={15} />
+                  </a>
+                )}
+                <button onClick={() => setFormProveedor({ ...PROVEEDOR_VACIO, ...p })} className="text-ink-light hover:text-ink">
+                  <Pencil size={14} />
+                </button>
+                <button onClick={() => onEliminar(p)} className="text-ink-light hover:text-coral">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FormProveedor({ form, setForm, onGuardar, onCerrar }) {
+  function set(campo, valor) {
+    setForm((f) => ({ ...f, [campo]: valor }))
+  }
+  return (
+    <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-4 z-50" onClick={onCerrar}>
+      <div className="bg-paper-card border border-rule rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-display text-xl">{form.id ? 'Editar' : 'Nuevo'} proveedor</h2>
+          <button onClick={onCerrar} className="text-ink-light hover:text-ink"><X size={18} /></button>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs text-ink-mid mb-1">Nombre de fantasía *</label>
+            <input className="input" placeholder="ej: Tregar" value={form.nombre_fantasia} onChange={(e) => set('nombre_fantasia', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs text-ink-mid mb-1">Razón social</label>
+            <input className="input" value={form.razon_social} onChange={(e) => set('razon_social', e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">CUIT</label>
+              <input className="input" value={form.cuit} onChange={(e) => set('cuit', e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">Teléfono / WhatsApp</label>
+              <input className="input" placeholder="11 5555-5555" value={form.telefono} onChange={(e) => set('telefono', e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">Alias de pago</label>
+              <input className="input" value={form.alias_pago} onChange={(e) => set('alias_pago', e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">CBU</label>
+              <input className="input" value={form.cbu} onChange={(e) => set('cbu', e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-ink-mid mb-1">Forma de pago</label>
+            <input className="input" placeholder="Transferencia, efectivo, cuenta corriente…" value={form.forma_pago} onChange={(e) => set('forma_pago', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs text-ink-mid mb-1">Email</label>
+            <input className="input" value={form.email} onChange={(e) => set('email', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-xs text-ink-mid mb-1">Notas</label>
+            <textarea className="input" rows={2} value={form.notas} onChange={(e) => set('notas', e.target.value)} />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-ink-mid">
+            <input type="checkbox" checked={form.activo} onChange={(e) => set('activo', e.target.checked)} />
+            Activo
+          </label>
+        </div>
+        <div className="flex gap-2 mt-6">
+          <button
+            onClick={onGuardar}
+            disabled={!form.nombre_fantasia}
             className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
           >
             Guardar

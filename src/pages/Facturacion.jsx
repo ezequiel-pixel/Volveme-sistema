@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Plus, X, DollarSign } from 'lucide-react'
+import { armarLinkWhatsapp } from '../lib/generarPdf'
+import { Plus, X, DollarSign, MessageCircle } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -91,7 +92,7 @@ export default function Facturacion() {
   async function cargarPagosProveedores() {
     const { data: comprasData } = await supabase
       .from('compras')
-      .select('*, insumos(nombre)')
+      .select('*, insumos(nombre), proveedores(nombre_fantasia, telefono, alias_pago, forma_pago)')
       .in('estado', ['comprado', 'recibido'])
 
     const { data: pagosData } = await supabase.from('pagos').select('*').eq('tipo', 'pago_proveedor')
@@ -185,7 +186,7 @@ export default function Facturacion() {
 
       {!loading && tab === 'proveedores' && (
         <TablaProveedores filas={pagosProveedores} onRegistrar={(f) => setFormPago({
-          tipo: 'pago_proveedor', compra_id: f.compra.id, descripcion: `${f.compra.proveedor || ''} — ${f.compra.insumos?.nombre || ''}`,
+          tipo: 'pago_proveedor', compra_id: f.compra.id, descripcion: `${f.compra.proveedores?.nombre_fantasia || ''} — ${f.compra.insumos?.nombre || ''}`,
           monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: '', notas: '',
         })} />
       )}
@@ -310,16 +311,37 @@ function TablaProveedores({ filas, onRegistrar }) {
           {filas.map((f) => (
             <tr key={f.compra.id} className="border-b border-rule last:border-0 hover:bg-paper/60">
               <td className="px-4 py-3 font-medium text-ink">{f.compra.insumos?.nombre || '—'}</td>
-              <td className="px-4 py-3 text-ink-mid">{f.compra.proveedor || '—'}</td>
+              <td className="px-4 py-3">
+                {f.compra.proveedores?.nombre_fantasia
+                  ? (
+                    <>
+                      <p className="text-ink-mid">{f.compra.proveedores.nombre_fantasia}</p>
+                      {f.compra.proveedores.alias_pago && (
+                        <p className="text-xs text-ink-light">MP: {f.compra.proveedores.alias_pago}</p>
+                      )}
+                    </>
+                  )
+                  : <span className="text-ink-light">—</span>}
+              </td>
               <td className="px-4 py-3 text-right text-ink-mid">{money(f.esperado)}</td>
               <td className="px-4 py-3 text-right text-ink-mid">{money(f.pagado)}</td>
               <td className="px-4 py-3 text-right font-medium text-ink">{money(Math.max(0, f.pendiente))}</td>
               <td className="px-4 py-3 text-right">
-                {f.pendiente > 0 && (
-                  <button onClick={() => onRegistrar(f)} className="flex items-center gap-1 text-xs text-wine hover:underline ml-auto">
-                    <Plus size={13} /> Pagar
-                  </button>
-                )}
+                <div className="flex items-center justify-end gap-3">
+                  {f.compra.proveedores?.telefono && (
+                    <a
+                      href={armarLinkWhatsapp(f.compra.proveedores.telefono, `¡Hola! Te escribo por el pago de ${f.compra.insumos?.nombre || 'tu pedido'}.`)}
+                      target="_blank" rel="noreferrer" className="text-ink-light hover:text-wine" title="WhatsApp al proveedor"
+                    >
+                      <MessageCircle size={14} />
+                    </a>
+                  )}
+                  {f.pendiente > 0 && (
+                    <button onClick={() => onRegistrar(f)} className="flex items-center gap-1 text-xs text-wine hover:underline">
+                      <Plus size={13} /> Pagar
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularNecesidadesInsumos } from '../lib/necesidadesInsumos'
+import { armarLinkWhatsapp } from '../lib/generarPdf'
 import PanelNecesidades from '../components/PanelNecesidades'
-import { Plus, Pencil, Trash2, X, Search, PackageCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Search, PackageCheck, MessageCircle } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -18,7 +19,7 @@ const ESTADO_STYLE = {
 const VACIO = {
   id: null,
   insumo_id: '',
-  proveedor: '',
+  proveedor_id: '',
   cantidad_paquetes: 1,
   precio_unitario_pagado: '',
   fecha_compra: new Date().toISOString().slice(0, 10),
@@ -29,6 +30,7 @@ const VACIO = {
 export default function Compras() {
   const [compras, setCompras] = useState([])
   const [insumos, setInsumos] = useState([])
+  const [proveedores, setProveedores] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
@@ -40,12 +42,15 @@ export default function Compras() {
     setLoading(true)
     const { data: comprasData } = await supabase
       .from('compras')
-      .select('*, insumos(nombre, categoria, unidad_medida, cantidad_por_paquete)')
+      .select('*, insumos(nombre, categoria, unidad_medida, cantidad_por_paquete, proveedor_id), proveedores(nombre_fantasia, telefono, alias_pago)')
       .order('fecha_compra', { ascending: false })
     setCompras(comprasData || [])
 
     const { data: insumosData } = await supabase.from('insumos').select('*').eq('activo', true).order('nombre')
     setInsumos(insumosData || [])
+
+    const { data: proveedoresData } = await supabase.from('proveedores').select('*').order('nombre_fantasia')
+    setProveedores(proveedoresData || [])
     setLoading(false)
   }
 
@@ -67,7 +72,7 @@ export default function Compras() {
   async function guardar() {
     const payload = {
       insumo_id: form.insumo_id || null,
-      proveedor: form.proveedor || null,
+      proveedor_id: form.proveedor_id || null,
       cantidad_paquetes: Number(form.cantidad_paquetes) || 1,
       precio_unitario_pagado: Number(form.precio_unitario_pagado) || 0,
       fecha_compra: form.fecha_compra,
@@ -111,7 +116,7 @@ export default function Compras() {
   const filtrado = compras.filter((c) => {
     if (filtroEstado !== 'todos' && c.estado !== filtroEstado) return false
     if (busqueda) {
-      const texto = `${c.insumos?.nombre || ''} ${c.proveedor || ''}`.toLowerCase()
+      const texto = `${c.insumos?.nombre || ''} ${c.proveedores?.nombre_fantasia || ''}`.toLowerCase()
       if (!texto.includes(busqueda.toLowerCase())) return false
     }
     return true
@@ -179,7 +184,20 @@ export default function Compras() {
                 {filtrado.map((c) => (
                   <tr key={c.id} className="border-b border-rule last:border-0 hover:bg-paper/60">
                     <td className="px-4 py-3 font-medium text-ink">{c.insumos?.nombre || '—'}</td>
-                    <td className="px-4 py-3 text-ink-mid">{c.proveedor || '—'}</td>
+                    <td className="px-4 py-3 text-ink-mid">
+                      {c.proveedores?.nombre_fantasia
+                        ? (
+                          <span className="flex items-center gap-1.5">
+                            {c.proveedores.nombre_fantasia}
+                            {c.proveedores.telefono && (
+                              <a href={armarLinkWhatsapp(c.proveedores.telefono, `¡Hola! Consultando por el pedido de ${c.insumos?.nombre || ''}.`)} target="_blank" rel="noreferrer" className="text-ink-light hover:text-wine">
+                                <MessageCircle size={13} />
+                              </a>
+                            )}
+                          </span>
+                        )
+                        : '—'}
+                    </td>
                     <td className="px-4 py-3 text-ink-mid">{new Date(c.fecha_compra + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                     <td className="px-4 py-3 text-right text-ink-mid">{c.cantidad_paquetes} {c.insumos?.tipo_paquete || ''}</td>
                     <td className="px-4 py-3 text-right text-ink">{money(c.cantidad_paquetes * c.precio_unitario_pagado)}</td>
@@ -209,7 +227,7 @@ export default function Compras() {
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div>
                     <p className="font-medium text-ink">{c.insumos?.nombre || '—'}</p>
-                    <p className="text-xs text-ink-light">{c.proveedor || '—'} · {new Date(c.fecha_compra + 'T00:00:00').toLocaleDateString('es-AR')}</p>
+                    <p className="text-xs text-ink-light">{c.proveedores?.nombre_fantasia || '—'} · {new Date(c.fecha_compra + 'T00:00:00').toLocaleDateString('es-AR')}</p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ${ESTADO_STYLE[c.estado]}`}>{ESTADO_LABEL[c.estado]}</span>
                 </div>
@@ -232,6 +250,7 @@ export default function Compras() {
           form={form}
           setForm={setForm}
           insumos={insumos}
+          proveedores={proveedores}
           onGuardar={guardar}
           onCerrar={() => setForm(null)}
         />
@@ -240,9 +259,15 @@ export default function Compras() {
   )
 }
 
-function FormModal({ form, setForm, insumos, onGuardar, onCerrar }) {
+function FormModal({ form, setForm, insumos, proveedores, onGuardar, onCerrar }) {
   function set(campo, valor) {
     setForm((f) => ({ ...f, [campo]: valor }))
+  }
+  function elegirInsumo(insumoId) {
+    const insumo = insumos.find((i) => String(i.id) === String(insumoId))
+    // Al elegir el insumo, precarga el proveedor que tiene por default
+    // (lo podés cambiar igual, por si esta vez le compraste a otro).
+    setForm((f) => ({ ...f, insumo_id: insumoId, proveedor_id: insumo?.proveedor_id || f.proveedor_id }))
   }
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-4 z-50" onClick={onCerrar}>
@@ -254,7 +279,7 @@ function FormModal({ form, setForm, insumos, onGuardar, onCerrar }) {
         <div className="space-y-4">
           <div>
             <label className="block text-xs text-ink-mid mb-1">Insumo</label>
-            <select className="input" value={form.insumo_id} onChange={(e) => set('insumo_id', e.target.value)}>
+            <select className="input" value={form.insumo_id} onChange={(e) => elegirInsumo(e.target.value)}>
               <option value="">Elegir…</option>
               {insumos.map((i) => (
                 <option key={i.id} value={i.id}>{i.nombre} — {i.tipo_paquete}</option>
@@ -263,7 +288,12 @@ function FormModal({ form, setForm, insumos, onGuardar, onCerrar }) {
           </div>
           <div>
             <label className="block text-xs text-ink-mid mb-1">Proveedor</label>
-            <input className="input" value={form.proveedor} onChange={(e) => set('proveedor', e.target.value)} />
+            <select className="input" value={form.proveedor_id || ''} onChange={(e) => set('proveedor_id', e.target.value)}>
+              <option value="">Sin proveedor</option>
+              {proveedores.map((p) => (
+                <option key={p.id} value={p.id}>{p.nombre_fantasia}</option>
+              ))}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
