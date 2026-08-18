@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { calcularNecesidadesInsumos } from '../lib/necesidadesInsumos'
 import PanelNecesidades from '../components/PanelNecesidades'
-import { Plus, Pencil, Trash2, X, Search, AlertTriangle, PackagePlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Search, AlertTriangle, PackagePlus, ClipboardList, Table2 } from 'lucide-react'
 
 const CATEGORIA_LABEL = {
   leche: 'Leche',
@@ -43,6 +43,10 @@ export default function Stock() {
   const [formReponer, setFormReponer] = useState(null)
   const [necesidades, setNecesidades] = useState(null)
   const [cargandoNecesidades, setCargandoNecesidades] = useState(true)
+  // 'chequeo' = vista simple tipo planilla (para actualizar el Actual
+  // rápido, pensada para que la use cualquiera sin explicación).
+  // 'catalogo' = la vista completa con costos y proveedores (para vos).
+  const [vista, setVista] = useState('chequeo')
 
   async function cargar() {
     setLoading(true)
@@ -97,6 +101,16 @@ export default function Stock() {
   async function toggleActivo(item) {
     await supabase.from('insumos').update({ activo: !item.activo }).eq('id', item.id)
     cargar()
+  }
+
+  /** Guarda el "Actual" al vuelo, sin modal — para el chequeo rápido
+   * tipo planilla. Actualiza el estado local al toque (no espera el
+   * refetch) para que se sienta instantáneo al tipear. */
+  async function actualizarStockActual(item, nuevoValor) {
+    const valor = nuevoValor === '' ? 0 : Number(nuevoValor)
+    setInsumos((prev) => prev.map((i) => (i.id === item.id ? { ...i, stock_actual: valor } : i)))
+    await supabase.from('insumos').update({ stock_actual: valor }).eq('id', item.id)
+    cargarNecesidades()
   }
 
   /** Reposición rápida — registra la compra en el historial (para que
@@ -157,6 +171,188 @@ export default function Stock() {
 
       <PanelNecesidades necesidades={necesidades} cargando={cargandoNecesidades} />
 
+      {/* Toggle de vista — "Chequeo rápido" (tipo planilla, para
+          cualquiera) vs "Catálogo completo" (costos y proveedores,
+          para vos). Las dos leen/escriben el mismo dato real. */}
+      <div className="inline-flex items-center gap-0.5 bg-peach/50 rounded-full p-1 mb-4">
+        <button
+          onClick={() => setVista('chequeo')}
+          className={`flex items-center gap-1.5 text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors ${
+            vista === 'chequeo' ? 'bg-paper-card text-ink shadow-soft' : 'text-ink-mid hover:text-ink'
+          }`}
+        >
+          <ClipboardList size={13} /> Chequeo rápido
+        </button>
+        <button
+          onClick={() => setVista('catalogo')}
+          className={`flex items-center gap-1.5 text-xs font-medium px-3.5 py-1.5 rounded-full transition-colors ${
+            vista === 'catalogo' ? 'bg-paper-card text-ink shadow-soft' : 'text-ink-mid hover:text-ink'
+          }`}
+        >
+          <Table2 size={13} /> Catálogo completo
+        </button>
+      </div>
+
+      {vista === 'chequeo' ? (
+        <ChequeoRapido
+          insumos={insumos}
+          loading={loading}
+          onActualizar={actualizarStockActual}
+          esStockBajo={esStockBajo}
+        />
+      ) : (
+        <VistaCatalogo
+          insumos={insumos}
+          loading={loading}
+          filtroCategoria={filtroCategoria}
+          setFiltroCategoria={setFiltroCategoria}
+          busqueda={busqueda}
+          setBusqueda={setBusqueda}
+          soloStockBajo={soloStockBajo}
+          setSoloStockBajo={setSoloStockBajo}
+          cantidadStockBajo={cantidadStockBajo}
+          esStockBajo={esStockBajo}
+          filtrado={filtrado}
+          setForm={setForm}
+          toggleActivo={toggleActivo}
+          eliminar={eliminar}
+          setFormReponer={setFormReponer}
+        />
+      )}
+
+      {form && <FormModal form={form} setForm={setForm} onGuardar={guardar} onCerrar={() => setForm(null)} />}
+      {formReponer && (
+        <FormReponer
+          formReponer={formReponer}
+          setFormReponer={setFormReponer}
+          onConfirmar={confirmarReposicion}
+          onCerrar={() => setFormReponer(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function costoUnitario(item) {
+  const cantidad = Number(item.cantidad_por_paquete) || 1
+  return (Number(item.precio_paquete) || 0) / cantidad
+}
+
+function unidadCorta(unidad) {
+  return unidad === 'unidad' ? 'u.' : unidad
+}
+
+/** ============ VISTA "CHEQUEO RÁPIDO" ============
+ * Igual a la planilla que ya usaban — pensada para que cualquiera
+ * (tu hermano incluido) la actualice sin tener que aprender nada del
+ * sistema. Un solo número editable por fila, todo lo demás calculado
+ * solo. Sin modal: escribís el número, se guarda cuando salís del
+ * campo (onBlur), no hay botón "Guardar" que apretar. */
+function ChequeoRapido({ insumos, loading, onActualizar, esStockBajo }) {
+  const activos = insumos.filter((i) => i.activo)
+
+  if (loading) return <p className="text-sm text-ink-light py-8 text-center">Cargando…</p>
+  if (activos.length === 0) return <p className="text-sm text-ink-light py-10 text-center border border-rule rounded-lg">No hay insumos activos todavía.</p>
+
+  return (
+    <>
+      <div className="hidden md:block border border-rule rounded-lg overflow-hidden bg-paper-card">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-rule text-left text-[11px] uppercase tracking-wide text-ink-light">
+              <th className="px-4 py-2.5 font-medium">Insumo</th>
+              <th className="px-4 py-2.5 font-medium text-right">Mínimo</th>
+              <th className="px-4 py-2.5 font-medium text-right">Actual</th>
+              <th className="px-4 py-2.5 font-medium">Estado</th>
+              <th className="px-4 py-2.5 font-medium">Pedido</th>
+            </tr>
+          </thead>
+          <tbody>
+            {activos.map((item) => (
+              <FilaChequeo key={item.id} item={item} onActualizar={onActualizar} stockBajo={esStockBajo(item)} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="md:hidden space-y-2">
+        {activos.map((item) => (
+          <FilaChequeoMobile key={item.id} item={item} onActualizar={onActualizar} stockBajo={esStockBajo(item)} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+function FilaChequeo({ item, onActualizar, stockBajo }) {
+  return (
+    <tr className="border-b border-rule last:border-0 hover:bg-paper/60">
+      <td className="px-4 py-3 font-medium text-ink">
+        {item.nombre}
+        <span className="text-ink-light font-normal"> {unidadCorta(item.unidad_medida) !== 'u.' ? `(${unidadCorta(item.unidad_medida)})` : ''}</span>
+      </td>
+      <td className="px-4 py-3 text-right text-ink-mid">{item.stock_minimo || '—'}</td>
+      <td className="px-4 py-3 text-right">
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          defaultValue={item.stock_actual}
+          onBlur={(e) => onActualizar(item, e.target.value)}
+          className="w-24 text-right border border-rule rounded px-2 py-1 focus:border-orange outline-none"
+        />
+      </td>
+      <td className="px-4 py-3">
+        {stockBajo
+          ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-coral-light text-coral">Bajo</span>
+          : <span className="text-[11px] px-2 py-0.5 rounded-full bg-wine text-paper">Hay stock</span>}
+      </td>
+      <td className="px-4 py-3">
+        {stockBajo
+          ? <span className="text-[11px] text-coral font-medium">Realizar pedido</span>
+          : <span className="text-[11px] text-ink-light">OK</span>}
+      </td>
+    </tr>
+  )
+}
+
+function FilaChequeoMobile({ item, onActualizar, stockBajo }) {
+  return (
+    <div className="border border-rule rounded-lg p-4 bg-paper-card">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <p className="font-medium text-ink">{item.nombre}</p>
+        {stockBajo
+          ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral-light text-coral flex-shrink-0">Realizar pedido</span>
+          : <span className="text-[10px] px-2 py-0.5 rounded-full bg-wine text-paper flex-shrink-0">Hay stock</span>}
+      </div>
+      <div className="flex items-center gap-3 text-sm">
+        <span className="text-ink-light">Mínimo: {item.stock_minimo || '—'}</span>
+        <label className="flex items-center gap-1.5 ml-auto">
+          <span className="text-ink-mid">Actual:</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={item.stock_actual}
+            onBlur={(e) => onActualizar(item, e.target.value)}
+            className="w-20 text-right border border-rule rounded px-2 py-1 focus:border-orange outline-none"
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+
+/** ============ VISTA "CATÁLOGO COMPLETO" ============
+ * La vista de siempre — costos por paquete, proveedores, edición
+ * completa. Para vos, no para el chequeo del día a día. */
+function VistaCatalogo({
+  insumos, loading, filtroCategoria, setFiltroCategoria, busqueda, setBusqueda,
+  soloStockBajo, setSoloStockBajo, cantidadStockBajo, esStockBajo, filtrado,
+  setForm, toggleActivo, eliminar, setFormReponer,
+}) {
+  return (
+    <div>
       {cantidadStockBajo > 0 && (
         <button
           onClick={() => setSoloStockBajo((v) => !v)}
@@ -170,7 +366,6 @@ export default function Stock() {
         </button>
       )}
 
-      {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="flex gap-1 overflow-x-auto flex-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {['todos', 'leche', 'agua', 'cafe', 'vasos', 'calcos', 'insumos', 'otro'].map((c) => (
@@ -208,7 +403,6 @@ export default function Stock() {
 
       {!loading && filtrado.length > 0 && (
         <>
-          {/* ===== Desktop: tabla ===== */}
           <div className="hidden md:block border border-rule rounded-lg overflow-hidden bg-paper-card">
             <table className="w-full text-sm">
               <thead>
@@ -240,7 +434,6 @@ export default function Stock() {
             </table>
           </div>
 
-          {/* ===== Mobile: tarjetas ===== */}
           <div className="md:hidden space-y-2">
             {filtrado.map((item) => (
               <FilaInsumoMobile
@@ -258,27 +451,8 @@ export default function Stock() {
           </div>
         </>
       )}
-
-      {form && <FormModal form={form} setForm={setForm} onGuardar={guardar} onCerrar={() => setForm(null)} />}
-      {formReponer && (
-        <FormReponer
-          formReponer={formReponer}
-          setFormReponer={setFormReponer}
-          onConfirmar={confirmarReposicion}
-          onCerrar={() => setFormReponer(null)}
-        />
-      )}
     </div>
   )
-}
-
-function costoUnitario(item) {
-  const cantidad = Number(item.cantidad_por_paquete) || 1
-  return (Number(item.precio_paquete) || 0) / cantidad
-}
-
-function unidadCorta(unidad) {
-  return unidad === 'unidad' ? 'u.' : unidad
 }
 
 function FilaInsumo({ item, stockBajo, onEditar, onToggleActivo, onEliminar, onReponer }) {
