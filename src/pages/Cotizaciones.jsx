@@ -97,8 +97,14 @@ export default function Cotizaciones() {
     navigate(`/cotizaciones/nueva?desde=${cotizacion.id}`)
   }
 
+  // "Todos" ahora significa "todas las activas" — las re-cotizadas
+  // (versiones viejas, reemplazadas por una nueva) quedan afuera del
+  // vistazo general. Si necesitás verlas igual, están en su propia
+  // pestaña "Re-cotizada".
   const cotizacionesFiltradas =
-    filtro === 'todos' ? cotizaciones : cotizaciones.filter((c) => c.estado === filtro)
+    filtro === 'todos'
+      ? cotizaciones.filter((c) => c.estado !== 'recotizada')
+      : cotizaciones.filter((c) => c.estado === filtro)
 
   return (
     <div>
