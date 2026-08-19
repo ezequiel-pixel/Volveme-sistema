@@ -98,72 +98,96 @@ export default function EventoDetalle() {
     )
   }
 
-  useEffect(() => {
-    async function cargar() {
-      const { data: ev } = await supabase
-        .from('eventos')
-        .select('*, clientes(nombre, telefono)')
-        .eq('id', id)
-        .single()
-      const { data: diasData } = await supabase
-        .from('evento_dias')
+  const [formEdicionRapida, setFormEdicionRapida] = useState(null)
+  const [tiposBarra, setTiposBarra] = useState([])
+
+  /** Separada del useEffect para poder llamarla de nuevo después de
+   * guardar una edición rápida — así el resumen y el desglose de
+   * insumos se recalculan solos con el motor de precios real, sin
+   * duplicar la lógica de cálculo en otro lado. */
+  async function cargarCotizacionYResultado() {
+    const { data: ev } = await supabase
+      .from('eventos')
+      .select('*, clientes(nombre, telefono)')
+      .eq('id', id)
+      .single()
+    const { data: diasData } = await supabase
+      .from('evento_dias')
+      .select('*')
+      .eq('evento_id', id)
+      .order('orden')
+
+    setEvento(ev)
+    setDias(diasData || [])
+
+    if (ev?.cotizacion_id) {
+      const { data: cot } = await supabase
+        .from('cotizaciones')
         .select('*')
-        .eq('evento_id', id)
-        .order('orden')
+        .eq('id', ev.cotizacion_id)
+        .single()
+      setCotizacion(cot)
 
-      setEvento(ev)
-      setDias(diasData || [])
+      if (cot) {
+        const { data: configRows } = await supabase.from('config_pricing').select('*')
+        const { data: amortRows } = await supabase.from('amortizacion_tipo_barra').select('*')
+        const config = configArrayToObject(configRows || [])
+        const amortizaciones = amortizacionesArrayToObject(amortRows || [])
+        setTiposBarra(Object.keys(amortizaciones))
 
-      if (ev?.cotizacion_id) {
-        const { data: cot } = await supabase
-          .from('cotizaciones')
+        const { data: cotDias } = await supabase
+          .from('cotizacion_dias')
           .select('*')
-          .eq('id', ev.cotizacion_id)
-          .single()
-        setCotizacion(cot)
+          .eq('cotizacion_id', cot.id)
+          .order('orden')
 
-        if (cot) {
-          const { data: configRows } = await supabase.from('config_pricing').select('*')
-          const { data: amortRows } = await supabase.from('amortizacion_tipo_barra').select('*')
-          const config = configArrayToObject(configRows || [])
-          const amortizaciones = amortizacionesArrayToObject(amortRows || [])
-
-          const { data: cotDias } = await supabase
-            .from('cotizacion_dias')
-            .select('*')
-            .eq('cotizacion_id', cot.id)
-            .order('orden')
-
-          const inputsRecalculo = {
-            dias: (cotDias || []).map((d) => ({
-              fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5),
-            })),
-            cantidad_pax: cot.cantidad_pax || 0,
-            nivel: cot.nivel === 'premium' ? 'Premium' : 'Esencial',
-            tamano_vaso: cot.tamano_vaso,
-            cantidad_cafes_override: cot.cantidad_cafes_override,
-            sin_insumos: cot.sin_insumos,
-            cantidad_baristas: cot.cantidad_baristas,
-            tipo_barra: cot.tipo_barra,
-            amortizacion_override: cot.amortizacion_override,
-            cantidad_maquina_1grupo_extra: cot.cantidad_maquina_1grupo_extra,
-            cantidad_maquina_2grupos_extra: cot.cantidad_maquina_2grupos_extra,
-            cantidad_molino_extra: cot.cantidad_molino_extra,
-            calcos: cot.calcos,
-            logo_3d: cot.logo_3d,
-            costo_flete: cot.costo_flete,
-            art: cot.art,
-            art_monto: cot.art_monto,
-            clausula_rc_monto: cot.clausula_rc_monto,
-            multiplicador: cot.multiplicador,
-            iva_pct: cot.iva_pct,
-          }
-          setResultado(calcularCotizacion(inputsRecalculo, config, amortizaciones))
+        const inputsRecalculo = {
+          dias: (cotDias || []).map((d) => ({
+            fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5),
+          })),
+          cantidad_pax: cot.cantidad_pax || 0,
+          nivel: cot.nivel === 'premium' ? 'Premium' : 'Esencial',
+          tamano_vaso: cot.tamano_vaso,
+          cantidad_cafes_override: cot.cantidad_cafes_override,
+          sin_insumos: cot.sin_insumos,
+          cantidad_baristas: cot.cantidad_baristas,
+          tipo_barra: cot.tipo_barra,
+          amortizacion_override: cot.amortizacion_override,
+          cantidad_maquina_1grupo_extra: cot.cantidad_maquina_1grupo_extra,
+          cantidad_maquina_2grupos_extra: cot.cantidad_maquina_2grupos_extra,
+          cantidad_molino_extra: cot.cantidad_molino_extra,
+          calcos: cot.calcos,
+          logo_3d: cot.logo_3d,
+          costo_flete: cot.costo_flete,
+          art: cot.art,
+          art_monto: cot.art_monto,
+          clausula_rc_monto: cot.clausula_rc_monto,
+          multiplicador: cot.multiplicador,
+          iva_pct: cot.iva_pct,
         }
+        setResultado(calcularCotizacion(inputsRecalculo, config, amortizaciones))
       }
-      setLoading(false)
     }
-    cargar()
+    setLoading(false)
+  }
+
+  /** Guarda los campos operativos que suelen cambiar la semana previa
+   * al evento — sin tocar el resto de la cotización (precio, cliente,
+   * etc). Después recalcula todo con cargarCotizacionYResultado(). */
+  async function guardarEdicionRapida() {
+    await supabase.from('cotizaciones').update({
+      calcos: formEdicionRapida.calcos,
+      cantidad_cafes_override: formEdicionRapida.cantidad_cafes_override === '' ? null : Number(formEdicionRapida.cantidad_cafes_override),
+      cantidad_baristas: Number(formEdicionRapida.cantidad_baristas) || 1,
+      tipo_barra: formEdicionRapida.tipo_barra,
+      nivel: formEdicionRapida.nivel.toLowerCase(),
+    }).eq('id', cotizacion.id)
+    setFormEdicionRapida(null)
+    cargarCotizacionYResultado()
+  }
+
+  useEffect(() => {
+    cargarCotizacionYResultado()
     cargarStaff()
   }, [id])
 
@@ -303,18 +327,99 @@ export default function EventoDetalle() {
           {/* Equipo y logística */}
           {cotizacion && (
             <div className="border border-rule rounded-lg p-5 bg-paper-card">
-              <p className="text-xs uppercase tracking-wide text-ink-light mb-4 flex items-center gap-1.5">
-                <Truck size={13} /> Equipo y logística
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
-                <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
-                <InfoItem label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
-                <InfoItem label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
-                <InfoItem label="Molino Faemma 500 extra" valor={cotizacion.cantidad_molino_extra > 0 ? `${cotizacion.cantidad_molino_extra}` : 'No'} />
-                <InfoItem label="ART" valor={cotizacion.art ? `Sí — ${money(cotizacion.art_monto)}` : 'No'} />
-                <InfoItem label="Costo de flete" valor={money(cotizacion.costo_flete)} />
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs uppercase tracking-wide text-ink-light flex items-center gap-1.5">
+                  <Truck size={13} /> Equipo y logística
+                </p>
+                {!formEdicionRapida && (
+                  <button
+                    onClick={() => setFormEdicionRapida({
+                      calcos: cotizacion.calcos || false,
+                      cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
+                      cantidad_baristas: cotizacion.cantidad_baristas || 1,
+                      tipo_barra: cotizacion.tipo_barra || tiposBarra[0] || '',
+                      nivel: cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial',
+                    })}
+                    className="text-xs text-wine hover:underline"
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
+
+              {!formEdicionRapida ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
+                  <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
+                  <InfoItem label="Nivel" valor={cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial'} />
+                  <InfoItem label="Calcos" valor={cotizacion.calcos ? 'Sí' : 'No'} />
+                  <InfoItem label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
+                  <InfoItem label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
+                  <InfoItem label="Molino Faemma 500 extra" valor={cotizacion.cantidad_molino_extra > 0 ? `${cotizacion.cantidad_molino_extra}` : 'No'} />
+                  <InfoItem label="ART" valor={cotizacion.art ? `Sí — ${money(cotizacion.art_monto)}` : 'No'} />
+                  <InfoItem label="Costo de flete" valor={money(cotizacion.costo_flete)} />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-xs text-ink-light">
+                    Estos son los campos que suelen cambiar la semana previa al evento — no toca precio ni el resto de la cotización.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-ink-mid mb-1">Cantidad de baristas pedidos</label>
+                      <input
+                        type="number" min="1" className="input"
+                        value={formEdicionRapida.cantidad_baristas}
+                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_baristas: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-ink-mid mb-1">Tipo de barra</label>
+                      <select
+                        className="input"
+                        value={formEdicionRapida.tipo_barra}
+                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, tipo_barra: e.target.value }))}
+                      >
+                        {tiposBarra.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-ink-mid mb-1">Nivel</label>
+                      <select
+                        className="input"
+                        value={formEdicionRapida.nivel}
+                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, nivel: e.target.value }))}
+                      >
+                        <option value="Esencial">Esencial</option>
+                        <option value="Premium">Premium</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-ink-mid mb-1">Cantidad de cafés (vacío = automático)</label>
+                      <input
+                        type="number" min="0" className="input"
+                        value={formEdicionRapida.cantidad_cafes_override}
+                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_cafes_override: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-ink-mid">
+                    <input
+                      type="checkbox" checked={formEdicionRapida.calcos}
+                      onChange={(e) => setFormEdicionRapida((f) => ({ ...f, calcos: e.target.checked }))}
+                    />
+                    Calcos
+                  </label>
+                  <div className="flex gap-2">
+                    <button onClick={guardarEdicionRapida} className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors">
+                      Guardar
+                    </button>
+                    <button onClick={() => setFormEdicionRapida(null)} className="border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
