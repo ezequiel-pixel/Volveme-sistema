@@ -60,9 +60,14 @@ export default function Checklist() {
       setItems(itemsData || [])
 
       // Conflictos: mismo equipamiento pedido en OTRO evento la misma
-      // fecha — el problema real de tener máquinas propias limitadas.
+      // fecha — pero solo si es de verdad único (cantidad_total = 1,
+      // como las máquinas, el molino o cada barra). Si tenés 2 o más
+      // unidades de algo (ej: 2 pitchers de 600ml), usar uno en cada
+      // barra simultánea NO es un conflicto real.
       if (ev?.fecha) {
-        const equipamientoIds = (itemsData || []).map((i) => i.equipamiento_id).filter(Boolean)
+        const equipamientoIds = (itemsData || [])
+          .filter((i) => i.equipamiento_id && (i.equipamiento?.cantidad_total ?? 1) <= 1)
+          .map((i) => i.equipamiento_id)
         if (equipamientoIds.length > 0) {
           const { data: otros } = await supabase
             .from('checklist_items')

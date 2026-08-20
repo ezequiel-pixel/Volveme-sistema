@@ -12,6 +12,7 @@ import Presupuesto from './pages/Presupuesto'
 import CafeDelMes from './pages/CafeDelMes'
 import Staff from './pages/Staff'
 import Stock from './pages/Stock'
+import Equipamiento from './pages/Equipamiento'
 import Proveedores from './pages/Proveedores'
 import Compras from './pages/Compras'
 import Facturacion from './pages/Facturacion'
@@ -50,7 +51,7 @@ export default function App() {
         <Route path="/cotizaciones/:id" element={<CotizacionDetalle />} />
         <Route path="/cafe-del-mes" element={<CafeDelMes />} />
         <Route path="/staff" element={<Staff />} />
-        <Route path="/equipamiento" element={<ComingSoon title="Equipamiento" />} />
+        <Route path="/equipamiento" element={<Equipamiento />} />
         <Route path="/stock" element={<Stock />} />
         <Route path="/proveedores" element={<Proveedores />} />
         <Route path="/compras" element={<Compras />} />

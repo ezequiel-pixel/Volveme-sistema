@@ -3,7 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
   LogOut, Menu, X,
-  LayoutDashboard, FileText, CalendarDays, Coffee, Users, PackageSearch,
+  LayoutDashboard, FileText, CalendarDays, Coffee, Users, PackageSearch, Building2, Wrench,
   ShoppingCart, Receipt,
 } from 'lucide-react'
 
@@ -14,6 +14,8 @@ const navItems = [
   { to: '/cafe-del-mes', label: 'Café del mes', icon: Coffee },
   { to: '/staff', label: 'Staff', icon: Users },
   { to: '/stock', label: 'Stock', icon: PackageSearch },
+  { to: '/equipamiento', label: 'Equipamiento', icon: Wrench },
+  { to: '/proveedores', label: 'Proveedores', icon: Building2 },
   { to: '/compras', label: 'Compras', icon: ShoppingCart },
   { to: '/facturacion', label: 'Facturación', icon: Receipt },
 ]
