@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
 import { armarLinkWhatsapp } from '../lib/generarPdf'
-import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList, ListChecks } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -223,6 +223,12 @@ export default function EventoDetalle() {
             className="flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors"
           >
             <ClipboardList size={15} /> Ficha operativa
+          </Link>
+          <Link
+            to={`/eventos/${evento.id}/checklist`}
+            className="flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+          >
+            <ListChecks size={15} /> Checklist
           </Link>
         </div>
       </div>
