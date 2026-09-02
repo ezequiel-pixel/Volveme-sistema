@@ -423,24 +423,26 @@ export default function Presupuesto() {
           </div>
         </div>
 
-        {/* Así vivimos nuestros eventos — collage simple, 9 fotos en 3x3.
-            Ya vienen recortadas a cuadrado DE ANTEMANO (no con CSS al
-            momento de generar el PDF) — por eso salen todas parejas,
-            del mismo tamaño, sin depender de que el motor del PDF
-            calcule bien ningún recorte. */}
+        {/* Así vivimos nuestros eventos — grilla chica de 8 fotos cuadradas
+            (ya recortadas de antemano, no con CSS) + 2 fotos grandes
+            completas abajo, sin recortar. */}
         <div className="bg-paper px-6 pt-10 pb-10">
           <p className="font-display text-3xl text-wine text-center leading-tight mb-6">
             NUESTRAS BARRAS.<br />MIL MOMENTOS.
           </p>
-          <div className="grid grid-cols-3 gap-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+          <div className="grid grid-cols-4 gap-2 mb-2">
+            {[1, 2, 3, 4, 5, 6, 8, 9].map((n) => (
               <img
                 key={n}
                 src={`/images/collage-${n}.jpg`}
                 alt=""
-                className={`w-full h-auto block rounded-sm ${n === 10 ? 'col-start-2' : ''}`}
+                className="w-full h-auto block rounded-sm"
               />
             ))}
+          </div>
+          <div className="space-y-2">
+            <img src="/images/galeria-10.jpg" alt="" className="w-full h-auto block rounded-sm" />
+            <img src="/images/galeria-11.jpg" alt="" className="w-full h-auto block rounded-sm" />
           </div>
         </div>
 
