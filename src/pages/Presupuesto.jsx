@@ -427,9 +427,8 @@ export default function Presupuesto() {
             (ya recortadas de antemano, no con CSS) + 2 fotos grandes
             completas abajo, sin recortar. */}
         <div className="bg-paper px-6 pt-10 pb-10">
-          <p className="font-display text-3xl text-wine text-center leading-tight mb-6">
-            NUESTRAS BARRAS.<br />MIL MOMENTOS.
-          </p>
+          <p className="font-display text-3xl text-wine text-center mb-1">NUESTRAS BARRAS.</p>
+          <p className="font-display text-3xl text-wine text-center mb-6">MIL MOMENTOS.</p>
           <div className="grid grid-cols-4 gap-2 mb-2">
             {[1, 2, 3, 4, 5, 6, 8, 9].map((n) => (
               <img
@@ -827,9 +826,8 @@ export default function Presupuesto() {
         {/* ============ PÁGINA 6 — ASÍ VIVIMOS NUESTROS EVENTOS ============ */}
         <section className="pres-page flex flex-col bg-paper">
           <div className="flex-1 flex flex-col justify-center px-10">
-            <h2 className="font-display text-4xl text-center text-wine leading-tight mb-10">
-              NUESTRAS BARRAS.<br />MIL MOMENTOS.
-            </h2>
+            <h2 className="font-display text-4xl text-center text-wine mb-1">NUESTRAS BARRAS.</h2>
+            <h2 className="font-display text-4xl text-center text-wine mb-10">MIL MOMENTOS.</h2>
             {/* Una sola imagen ya armada (el collage de las 9 fotos viene
                 compuesto de antes, no con una grilla de CSS) — así no
                 depende de que el motor del PDF calcule bien ningún
