@@ -423,20 +423,22 @@ export default function Presupuesto() {
           </div>
         </div>
 
-        {/* Así vivimos nuestros eventos — collage simple, 4 fotos en 2x2.
+        {/* Así vivimos nuestros eventos — collage simple, 9 fotos en 3x3.
             Ya vienen recortadas a cuadrado DE ANTEMANO (no con CSS al
             momento de generar el PDF) — por eso salen todas parejas,
             del mismo tamaño, sin depender de que el motor del PDF
             calcule bien ningún recorte. */}
         <div className="bg-paper px-6 pt-10 pb-10">
-          <p className="font-display text-3xl text-wine text-center mb-6">Así vivimos nuestros eventos</p>
-          <div className="grid grid-cols-2 gap-2">
-            {[1, 2, 3, 4].map((n) => (
+          <p className="font-display text-3xl text-wine text-center leading-tight mb-6">
+            NUESTRAS BARRAS.<br />MIL MOMENTOS.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <img
                 key={n}
                 src={`/images/collage-${n}.jpg`}
                 alt=""
-                className="w-full h-auto block rounded-sm"
+                className={`w-full h-auto block rounded-sm ${n === 10 ? 'col-start-2' : ''}`}
               />
             ))}
           </div>
@@ -823,8 +825,10 @@ export default function Presupuesto() {
         {/* ============ PÁGINA 6 — ASÍ VIVIMOS NUESTROS EVENTOS ============ */}
         <section className="pres-page flex flex-col bg-paper">
           <div className="flex-1 flex flex-col justify-center px-10">
-            <h2 className="font-display text-4xl text-center text-wine mb-10">Así vivimos nuestros eventos</h2>
-            {/* Una sola imagen ya armada (el collage de las 7 fotos viene
+            <h2 className="font-display text-4xl text-center text-wine leading-tight mb-10">
+              NUESTRAS BARRAS.<br />MIL MOMENTOS.
+            </h2>
+            {/* Una sola imagen ya armada (el collage de las 9 fotos viene
                 compuesto de antes, no con una grilla de CSS) — así no
                 depende de que el motor del PDF calcule bien ningún
                 recorte ni tamaño, cero riesgo de que salga distinto. */}
