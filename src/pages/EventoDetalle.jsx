@@ -8,6 +8,12 @@ import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
+const redondearArriba = (n) => Math.ceil((n || 0) / 100) * 100
+
+function formatFechaHora(fechaStr) {
+  return new Date(fechaStr).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 function formatFecha(fechaStr) {
   if (!fechaStr) return ''
   return new Date(fechaStr + 'T00:00:00').toLocaleDateString('es-AR', {
@@ -100,6 +106,64 @@ export default function EventoDetalle() {
 
   const [formEdicionRapida, setFormEdicionRapida] = useState(null)
   const [tiposBarra, setTiposBarra] = useState([])
+  const [ajustes, setAjustes] = useState([])
+  const [configCalculo, setConfigCalculo] = useState(null)
+  const [amortizacionesCalculo, setAmortizacionesCalculo] = useState(null)
+
+  async function cargarAjustes() {
+    const { data } = await supabase.from('evento_ajustes').select('*').eq('evento_id', id).order('creado_en')
+    setAjustes(data || [])
+    return data || []
+  }
+
+  /** Para cuando una cotización se marcó "aceptada" por error. NO borra
+   * nada — el staff asignado, los ajustes de precio y el cronograma
+   * quedan intactos. Revierte los DOS lados de la relación: el evento
+   * vuelve a estado "cotizado" y la cotización de origen vuelve a
+   * "enviada" (como si nunca se hubiera aceptado). Editar (cambiar
+   * nivel, agregar bebidas, etc.) es una acción totalmente distinta —
+   * esa vive en "Equipo y logística" → Editar. */
+  async function volverACotizado() {
+    const confirmado = confirm(
+      `¿Volver "${evento.nombre}" a estado "Cotizado"?\n\n` +
+      `Esto NO borra nada — el staff asignado, los ajustes de precio y el cronograma quedan como están. ` +
+      `El evento pasa a "cotizado" y la cotización de origen vuelve a "enviada", por si se confirmó por error.`
+    )
+    if (!confirmado) return
+
+    await supabase.from('eventos').update({ estado: 'cotizado' }).eq('id', id)
+    if (evento.cotizacion_id) {
+      await supabase.from('cotizaciones').update({ estado: 'enviada' }).eq('id', evento.cotizacion_id)
+    }
+    cargarCotizacionYResultado()
+  }
+
+  function construirInputsRecalculo(cot, cotDias) {
+    return {
+      dias: (cotDias || []).map((d) => ({
+        fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5),
+      })),
+      cantidad_pax: cot.cantidad_pax || 0,
+      nivel: cot.nivel === 'premium' ? 'Premium' : 'Esencial',
+      tamano_vaso: cot.tamano_vaso,
+      cantidad_cafes_override: cot.cantidad_cafes_override,
+      sin_insumos: cot.sin_insumos,
+      cantidad_baristas: cot.cantidad_baristas,
+      tipo_barra: cot.tipo_barra,
+      amortizacion_override: cot.amortizacion_override,
+      cantidad_maquina_1grupo_extra: cot.cantidad_maquina_1grupo_extra,
+      cantidad_maquina_2grupos_extra: cot.cantidad_maquina_2grupos_extra,
+      cantidad_molino_extra: cot.cantidad_molino_extra,
+      calcos: cot.calcos,
+      logo_3d: cot.logo_3d,
+      costo_flete: cot.costo_flete,
+      art: cot.art,
+      art_monto: cot.art_monto,
+      clausula_rc_monto: cot.clausula_rc_monto,
+      multiplicador: cot.multiplicador,
+      iva_pct: cot.iva_pct,
+    }
+  }
 
   /** Separada del useEffect para poder llamarla de nuevo después de
    * guardar una edición rápida — así el resumen y el desglose de
@@ -134,6 +198,8 @@ export default function EventoDetalle() {
         const config = configArrayToObject(configRows || [])
         const amortizaciones = amortizacionesArrayToObject(amortRows || [])
         setTiposBarra(Object.keys(amortizaciones))
+        setConfigCalculo(config)
+        setAmortizacionesCalculo(amortizaciones)
 
         const { data: cotDias } = await supabase
           .from('cotizacion_dias')
@@ -141,47 +207,83 @@ export default function EventoDetalle() {
           .eq('cotizacion_id', cot.id)
           .order('orden')
 
-        const inputsRecalculo = {
-          dias: (cotDias || []).map((d) => ({
-            fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5),
-          })),
-          cantidad_pax: cot.cantidad_pax || 0,
-          nivel: cot.nivel === 'premium' ? 'Premium' : 'Esencial',
-          tamano_vaso: cot.tamano_vaso,
-          cantidad_cafes_override: cot.cantidad_cafes_override,
-          sin_insumos: cot.sin_insumos,
-          cantidad_baristas: cot.cantidad_baristas,
-          tipo_barra: cot.tipo_barra,
-          amortizacion_override: cot.amortizacion_override,
-          cantidad_maquina_1grupo_extra: cot.cantidad_maquina_1grupo_extra,
-          cantidad_maquina_2grupos_extra: cot.cantidad_maquina_2grupos_extra,
-          cantidad_molino_extra: cot.cantidad_molino_extra,
-          calcos: cot.calcos,
-          logo_3d: cot.logo_3d,
-          costo_flete: cot.costo_flete,
-          art: cot.art,
-          art_monto: cot.art_monto,
-          clausula_rc_monto: cot.clausula_rc_monto,
-          multiplicador: cot.multiplicador,
-          iva_pct: cot.iva_pct,
+        const inputsRecalculo = construirInputsRecalculo(cot, cotDias)
+        const nuevoResultado = calcularCotizacion(inputsRecalculo, config, amortizaciones)
+        setResultado(nuevoResultado)
+
+        // Congela precio_original la PRIMERA vez que el evento se carga
+        // con ajustes en $0 — así queda fijo el precio que se acordó al
+        // confirmar, y cualquier cambio de acá en adelante se guarda
+        // como diferencia en evento_ajustes, nunca pisando este valor.
+        const ajustesActuales = await cargarAjustes()
+        if (ev.precio_original == null && ajustesActuales.length === 0) {
+          const precioActual = redondearArriba(nuevoResultado.precioFinal)
+          await supabase.from('eventos').update({ precio_original: precioActual }).eq('id', id)
+          ev.precio_original = precioActual
+          setEvento({ ...ev })
         }
-        setResultado(calcularCotizacion(inputsRecalculo, config, amortizaciones))
       }
     }
     setLoading(false)
   }
 
   /** Guarda los campos operativos que suelen cambiar la semana previa
-   * al evento — sin tocar el resto de la cotización (precio, cliente,
-   * etc). Después recalcula todo con cargarCotizacionYResultado(). */
+   * al evento (o un upgrade pedido por el cliente ya confirmado) — y
+   * ahora, a diferencia de antes, deja registro de la diferencia de
+   * precio que generó el cambio en vez de pisar todo en silencio.
+   * El precio original (evento.precio_original) nunca se toca acá. */
   async function guardarEdicionRapida() {
-    await supabase.from('cotizaciones').update({
+    if (!configCalculo || !amortizacionesCalculo) return
+
+    const { data: cotDias } = await supabase
+      .from('cotizacion_dias')
+      .select('*')
+      .eq('cotizacion_id', cotizacion.id)
+      .order('orden')
+
+    const precioAntes = redondearArriba(calcularCotizacion(construirInputsRecalculo(cotizacion, cotDias), configCalculo, amortizacionesCalculo).precioFinal)
+    const costoAntes = calcularCotizacion(construirInputsRecalculo(cotizacion, cotDias), configCalculo, amortizacionesCalculo).costoTotal
+
+    const cambios = []
+    if (formEdicionRapida.nivel.toLowerCase() !== cotizacion.nivel) cambios.push(`Nivel: ${cotizacion.nivel} → ${formEdicionRapida.nivel.toLowerCase()}`)
+    if (Number(formEdicionRapida.cantidad_baristas) !== cotizacion.cantidad_baristas) cambios.push(`Baristas: ${cotizacion.cantidad_baristas} → ${formEdicionRapida.cantidad_baristas}`)
+    if (formEdicionRapida.tipo_barra !== cotizacion.tipo_barra) cambios.push(`Tipo de barra: ${cotizacion.tipo_barra} → ${formEdicionRapida.tipo_barra}`)
+    if (!!formEdicionRapida.calcos !== !!cotizacion.calcos) cambios.push(`Calcos: ${cotizacion.calcos ? 'sí' : 'no'} → ${formEdicionRapida.calcos ? 'sí' : 'no'}`)
+    const cafesAntes = cotizacion.cantidad_cafes_override ?? null
+    const cafesDespues = formEdicionRapida.cantidad_cafes_override === '' ? null : Number(formEdicionRapida.cantidad_cafes_override)
+    if (cafesAntes !== cafesDespues) cambios.push(`Cantidad de cafés: ${cafesAntes ?? 'automático'} → ${cafesDespues ?? 'automático'}`)
+
+    const cotizacionActualizada = {
+      ...cotizacion,
       calcos: formEdicionRapida.calcos,
-      cantidad_cafes_override: formEdicionRapida.cantidad_cafes_override === '' ? null : Number(formEdicionRapida.cantidad_cafes_override),
+      cantidad_cafes_override: cafesDespues,
       cantidad_baristas: Number(formEdicionRapida.cantidad_baristas) || 1,
       tipo_barra: formEdicionRapida.tipo_barra,
       nivel: formEdicionRapida.nivel.toLowerCase(),
+    }
+
+    await supabase.from('cotizaciones').update({
+      calcos: cotizacionActualizada.calcos,
+      cantidad_cafes_override: cotizacionActualizada.cantidad_cafes_override,
+      cantidad_baristas: cotizacionActualizada.cantidad_baristas,
+      tipo_barra: cotizacionActualizada.tipo_barra,
+      nivel: cotizacionActualizada.nivel,
     }).eq('id', cotizacion.id)
+
+    const resultadoDespues = calcularCotizacion(construirInputsRecalculo(cotizacionActualizada, cotDias), configCalculo, amortizacionesCalculo)
+    const precioDespues = redondearArriba(resultadoDespues.precioFinal)
+    const deltaPrecio = precioDespues - precioAntes
+    const deltaCostoReal = resultadoDespues.costoTotal - costoAntes
+
+    if (deltaPrecio !== 0 && cambios.length > 0) {
+      await supabase.from('evento_ajustes').insert({
+        evento_id: id,
+        descripcion: cambios.join('; '),
+        delta_costo_real: deltaCostoReal,
+        delta_precio: deltaPrecio,
+      })
+    }
+
     setFormEdicionRapida(null)
     cargarCotizacionYResultado()
   }
@@ -207,6 +309,13 @@ export default function EventoDetalle() {
           <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Ficha de evento</p>
           <h1 className="font-display text-3xl mb-2">{evento.nombre}</h1>
           <span className={`text-xs px-2.5 py-1 rounded-full ${estadoStyles[evento.estado]}`}>{evento.estado}</span>
+          <button
+            onClick={volverACotizado}
+            className="ml-3 text-xs text-ink-light hover:text-coral underline decoration-dotted"
+            title="Por si esta cotización se marcó como aceptada por error — no borra nada"
+          >
+            ¿Se confirmó por error? Volver a Cotizado
+          </button>
         </div>
         <div className="flex flex-wrap gap-2 flex-shrink-0">
           {evento.cotizacion_id && (
@@ -574,7 +683,7 @@ export default function EventoDetalle() {
 
         {/* Resumen económico interno (no va al cliente) */}
         {resultado && (
-          <div className="lg:sticky lg:top-8">
+          <div className="lg:sticky lg:top-8 space-y-4">
             <div className="border border-rule rounded-lg p-5 bg-paper-card space-y-3 text-sm">
               <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Resumen económico (interno)</p>
               <LineaResumen label="Insumos" valor={money(resultado.totalInsumos)} />
@@ -586,8 +695,42 @@ export default function EventoDetalle() {
                 <LineaResumen label="Costo total" valor={money(resultado.costoTotal)} bold />
               </div>
               <div className="border-t border-rule pt-3">
-                <LineaResumen label="Precio cobrado" valor={money(resultado.precioFinal)} bold />
+                <LineaResumen label="Precio con la config actual" valor={money(resultado.precioFinal)} />
                 <LineaResumen label="Margen" valor={`${(resultado.margenPct * 100).toFixed(1)}%`} />
+              </div>
+            </div>
+
+            {/* Precio original + cada ajuste + total total — nunca se pisa
+                el original, cada cambio post-confirmación queda como una
+                línea separada acá, tal como se le pidió al sistema. */}
+            <div className="border border-rule rounded-lg p-5 bg-paper-card space-y-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Ajustes de precio</p>
+              <LineaResumen label="Precio original (al confirmar)" valor={evento.precio_original != null ? money(evento.precio_original) : '—'} />
+
+              {ajustes.length === 0 ? (
+                <p className="text-xs text-ink-light pt-1">Sin ajustes todavía — este es el precio con el que se confirmó el evento.</p>
+              ) : (
+                <div className="border-t border-rule pt-3 space-y-2">
+                  {ajustes.map((a) => (
+                    <div key={a.id} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-ink-mid">{a.descripcion}</p>
+                        <p className="text-[11px] text-ink-light">{formatFechaHora(a.creado_en)}</p>
+                      </div>
+                      <span className={`text-xs font-medium whitespace-nowrap ${a.delta_precio >= 0 ? 'text-orange' : 'text-wine'}`}>
+                        {a.delta_precio >= 0 ? '+' : ''}{money(a.delta_precio)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="border-t border-rule pt-3">
+                <LineaResumen
+                  label="TOTAL TOTAL"
+                  valor={money((evento.precio_original || 0) + ajustes.reduce((s, a) => s + Number(a.delta_precio), 0))}
+                  bold
+                />
               </div>
             </div>
           </div>
