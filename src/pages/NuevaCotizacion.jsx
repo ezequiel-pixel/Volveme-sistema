@@ -123,7 +123,7 @@ const defaultInputs = {
   extra_distancia: 0,
 }
 
-const defaultDia = () => ({ modo: 'horario', fecha: '', horaInicio: '08:00', horaFin: '18:00', duracionHoras: '' })
+const defaultDia = () => ({ modo: 'horario', fecha: '', horaInicio: '08:00', horaFin: '18:00', duracionHoras: '', cantidadBaristas: '', equipoExtra: [] })
 
 export default function NuevaCotizacion() {
   const navigate = useNavigate()
@@ -132,6 +132,7 @@ export default function NuevaCotizacion() {
   const [config, setConfig] = useState(null)
   const [amortizaciones, setAmortizaciones] = useState(null)
   const [tiposBarra, setTiposBarra] = useState([])
+  const [catalogoEquipos, setCatalogoEquipos] = useState([])
   const [inputs, setInputs] = useState(defaultInputs)
   const [dias, setDias] = useState([defaultDia()])
   const [saving, setSaving] = useState(false)
@@ -189,9 +190,15 @@ export default function NuevaCotizacion() {
     async function cargarConfig() {
       const { data: configRows } = await supabase.from('config_pricing').select('*')
       const { data: amortRows } = await supabase.from('amortizacion_tipo_barra').select('*')
+      const { data: equiposRows } = await supabase
+        .from('equipos_catalogo')
+        .select('*, proveedores(nombre_fantasia)')
+        .eq('activo', true)
+        .order('proveedor_id', { nullsFirst: true })
       setConfig(configArrayToObject(configRows || []))
       setAmortizaciones(amortizacionesArrayToObject(amortRows || []))
       setTiposBarra((amortRows || []).map((r) => r.tipo))
+      setCatalogoEquipos(equiposRows || [])
     }
     cargarConfig()
   }, [])
@@ -245,12 +252,21 @@ export default function NuevaCotizacion() {
         setPasteleriaMarkup(cot.pasteleria_markup_pct != null ? cot.pasteleria_markup_pct * 100 : 65)
       }
       if (diasCot && diasCot.length) {
+        const diaIds = diasCot.map((d) => d.id)
+        const { data: reservasCot } = diaIds.length
+          ? await supabase.from('equipo_reservas').select('*').in('cotizacion_dia_id', diaIds)
+          : { data: [] }
+
         setDias(diasCot.map((d) => ({
           modo: d.duracion_horas != null ? 'horas' : 'horario',
           fecha: d.fecha,
           horaInicio: d.hora_inicio?.slice(0, 5) || '08:00',
           horaFin: d.hora_fin?.slice(0, 5) || '18:00',
           duracionHoras: d.duracion_horas != null ? String(d.duracion_horas) : '',
+          cantidadBaristas: d.cantidad_baristas != null ? String(d.cantidad_baristas) : '',
+          equipoExtra: (reservasCot || [])
+            .filter((r) => r.cotizacion_dia_id === d.id)
+            .map((r) => ({ equipoCatalogoId: r.equipo_catalogo_id, cantidad: r.cantidad, costoDia: r.costo_dia })),
         })))
       }
       const { data: itemsPast } = await supabase
@@ -300,6 +316,44 @@ export default function NuevaCotizacion() {
   function quitarDia(index) {
     setDias((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
   }
+
+  // ---- Equipo extra por día (Volveme propio no entra acá — esto es
+  // SOLO para lo adicional: otra barra de Facu/Peipe, un molino de más,
+  // mobiliario externo, etc. Cada ítem ya guarda su costo resuelto
+  // (cantidad × tarifa × margen) para que pricingEngine no tenga que
+  // saber nada del catálogo — solo suma lo que ya viene calculado). ----
+  function costoItemEquipo(equipoCatalogoId, cantidad) {
+    const eq = catalogoEquipos.find((e) => e.id === equipoCatalogoId)
+    if (!eq) return 0
+    return (Number(cantidad) || 0) * Number(eq.tarifa_dia) * (1 + Number(eq.margen_pct || 0))
+  }
+
+  function agregarEquipoADia(diaIndex) {
+    const primero = catalogoEquipos.find((e) => e.proveedor_id) || catalogoEquipos[0]
+    if (!primero) return
+    setDias((prev) => prev.map((d, i) => {
+      if (i !== diaIndex) return d
+      const nuevoItem = { equipoCatalogoId: primero.id, cantidad: 1, costoDia: costoItemEquipo(primero.id, 1) }
+      return { ...d, equipoExtra: [...(d.equipoExtra || []), nuevoItem] }
+    }))
+  }
+
+  function actualizarEquipoDeDia(diaIndex, itemIndex, campo, valor) {
+    setDias((prev) => prev.map((d, i) => {
+      if (i !== diaIndex) return d
+      const items = (d.equipoExtra || []).map((it, j) => {
+        if (j !== itemIndex) return it
+        const actualizado = { ...it, [campo]: valor }
+        return { ...actualizado, costoDia: costoItemEquipo(actualizado.equipoCatalogoId, actualizado.cantidad) }
+      })
+      return { ...d, equipoExtra: items }
+    }))
+  }
+
+  function quitarEquipoDeDia(diaIndex, itemIndex) {
+    setDias((prev) => prev.map((d, i) => (i === diaIndex ? { ...d, equipoExtra: (d.equipoExtra || []).filter((_, j) => j !== itemIndex) } : d)))
+  }
+
 
   const resultado = config && amortizaciones
     ? calcularCotizacion(
@@ -408,16 +462,44 @@ export default function NuevaCotizacion() {
       await supabase.from('cotizaciones').update({ estado: 'recotizada' }).eq('id', recotizarDesdeId)
     }
 
-    const { error: errDias } = await supabase.from('cotizacion_dias').insert(
+    const { data: diasInsertados, error: errDias } = await supabase.from('cotizacion_dias').insert(
       diasOrdenados.map((d, i) => ({
         cotizacion_id: nuevaCot.id,
         fecha: d.fecha,
         hora_inicio: (d.modo || 'horario') === 'horas' ? null : d.horaInicio,
         hora_fin: (d.modo || 'horario') === 'horas' ? null : d.horaFin,
         duracion_horas: (d.modo || 'horario') === 'horas' ? Number(d.duracionHoras) || null : null,
+        cantidad_baristas: d.cantidadBaristas !== '' && d.cantidadBaristas != null ? Number(d.cantidadBaristas) : null,
         orden: i,
       }))
-    )
+    ).select('id')
+
+    // Equipo extra cargado por día (Facu, Peipe, mobiliario, etc.) — una
+    // fila en equipo_reservas por cada ítem de cada día. Si no hay
+    // ninguno cargado (cotización con el flujo viejo de siempre), no
+    // inserta nada acá y todo sigue funcionando como antes.
+    if (!errDias && diasInsertados) {
+      const reservas = []
+      diasOrdenados.forEach((d, i) => {
+        const diaId = diasInsertados[i]?.id
+        if (!diaId) return
+        for (const item of d.equipoExtra || []) {
+          if (!item.equipoCatalogoId) continue
+          reservas.push({
+            equipo_catalogo_id: item.equipoCatalogoId,
+            fecha: d.fecha,
+            cantidad: Number(item.cantidad) || 1,
+            cotizacion_dia_id: diaId,
+            costo_dia: Number(item.costoDia) || 0,
+          })
+        }
+      })
+      if (reservas.length > 0) {
+        const { error: errReservas } = await supabase.from('equipo_reservas').insert(reservas)
+        if (errReservas) console.error('No se pudieron guardar las reservas de equipo por día:', errReservas)
+      }
+    }
+
 
     if (llevaPasteleria && pasteleriaItems.length > 0) {
       await supabase.from('cotizacion_pasteleria_items').insert(
@@ -530,6 +612,80 @@ export default function NuevaCotizacion() {
                         />
                       </Field>
                     )}
+
+                    {/* NUEVO — baristas y equipo para ESTE día en particular.
+                        Opcional: si lo dejás vacío, se usa el número global de
+                        "Cantidad de baristas" y el equipo extra de más abajo,
+                        como siempre. Solo hace falta esto si un día necesita
+                        algo distinto del resto (ej. día 1 con 2 baristas,
+                        día 2 con 3, o una barra extra de Facu solo el día 2). */}
+                    <div className="pt-2 border-t border-rule/60 space-y-2">
+                      <Field label="Baristas este día (vacío = usar el número general de abajo)">
+                        <input
+                          type="number" min="0"
+                          value={dia.cantidadBaristas}
+                          onChange={(e) => updateDia(i, 'cantidadBaristas', e.target.value)}
+                          className="input"
+                          placeholder={String(inputs.cantidad_baristas || 1)}
+                        />
+                      </Field>
+
+                      {(dia.equipoExtra || []).length > 0 && (
+                        <div className="space-y-1.5">
+                          {dia.equipoExtra.map((item, j) => {
+                            const eq = catalogoEquipos.find((e) => e.id === item.equipoCatalogoId)
+                            return (
+                              <div key={j} className="flex items-center gap-1.5">
+                                <select
+                                  value={item.equipoCatalogoId}
+                                  onChange={(e) => actualizarEquipoDeDia(i, j, 'equipoCatalogoId', e.target.value)}
+                                  className="input text-xs flex-1"
+                                >
+                                  {Object.entries(
+                                    catalogoEquipos.reduce((grupos, e) => {
+                                      const nombreGrupo = e.proveedores?.nombre_fantasia || 'Volveme (propio)'
+                                      grupos[nombreGrupo] = grupos[nombreGrupo] || []
+                                      grupos[nombreGrupo].push(e)
+                                      return grupos
+                                    }, {})
+                                  ).map(([grupo, items]) => (
+                                    <optgroup key={grupo} label={grupo}>
+                                      {items.map((e) => (
+                                        <option key={e.id} value={e.id}>
+                                          {e.nombre} {e.proveedor_id ? `— $${Number(e.tarifa_dia).toLocaleString('es-AR')}/día +${(e.margen_pct * 100).toFixed(0)}%` : ''}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  ))}
+                                </select>
+                                <input
+                                  type="number" min="1"
+                                  value={item.cantidad}
+                                  onChange={(e) => actualizarEquipoDeDia(i, j, 'cantidad', e.target.value)}
+                                  className="input text-xs w-16"
+                                  disabled={eq && !eq.multi_unidad}
+                                />
+                                <span className="text-xs text-ink-light w-24 text-right whitespace-nowrap">
+                                  ${Math.round(item.costoDia || 0).toLocaleString('es-AR')}
+                                </span>
+                                <button type="button" onClick={() => quitarEquipoDeDia(i, j)} className="text-ink-light hover:text-coral">
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => agregarEquipoADia(i)}
+                        disabled={catalogoEquipos.length === 0}
+                        className="flex items-center gap-1 text-xs text-wine hover:underline disabled:opacity-40"
+                      >
+                        <Plus size={12} /> Agregar equipo extra a este día (Facu, Peipe, mobiliario…)
+                      </button>
+                    </div>
+
                   </div>
                 ))}
               </div>
@@ -585,7 +741,8 @@ export default function NuevaCotizacion() {
               {/* Alquiler de equipo extra — por tipo específico y
                   cantidad (0, 1 o 2), no más un tilde genérico. */}
               <div className="pt-2 border-t border-rule mt-1">
-                <p className="text-xs uppercase tracking-wide text-ink-light mb-3">Alquiler de equipo extra</p>
+                <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Alquiler de equipo extra (general, para todo el evento)</p>
+                <p className="text-[11px] text-ink-light mb-3">Si cargaste equipo extra en algún día específico (arriba, en "Días del evento"), esto de acá se ignora — manda lo que pusiste por día.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <Field label="Máquina 1 grupo Faemma ($200.000/día c/u)">
                     <select className="input" value={inputs.cantidad_maquina_1grupo_extra} onChange={(e) => update('cantidad_maquina_1grupo_extra', e.target.value)}>

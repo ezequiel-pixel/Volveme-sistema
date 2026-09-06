@@ -125,12 +125,9 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const extraBaristaMonto = inputs.extra_barista_monto || 0
   const totalManoDeObra = sueldoBaristas + viaticosBaristas + extraBaristaMonto
 
-  const amortizacionDia =
-    inputs.amortizacion_override ??
-    amortizaciones[inputs.tipo_barra] ??
-    c.amortizacion_equipo_default ??
-    0
-  const amortizacionTotal = amortizacionDia * cantidadDias
+  const amortInfo = amortizaciones[inputs.tipo_barra] ?? { monto: c.amortizacion_equipo_default ?? 0, porDia: true }
+  const amortizacionDia = inputs.amortizacion_override ?? amortInfo.monto
+  const amortizacionTotal = amortInfo.porDia === false ? amortizacionDia : amortizacionDia * cantidadDias
 
   // Alquiler de equipo extra — por tipo específico y cantidad (antes
   // era un simple on/off "alquiler máquina extra" genérico). Cada
@@ -143,7 +140,41 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const alquilerMaquina2Grupos = cantidadMaquina2Grupos * (c.tarifa_maquina_2grupos_dia ?? 330000) * cantidadDias
   const alquilerMolinoExtra = cantidadMolinoExtra * (c.tarifa_molino_dia ?? 130000) * cantidadDias
 
-  const alquilerEquipoExtra = alquilerMaquina1Grupo + alquilerMaquina2Grupos + alquilerMolinoExtra
+  const alquilerEquipoExtraViejo = alquilerMaquina1Grupo + alquilerMaquina2Grupos + alquilerMolinoExtra
+
+  // ---- NUEVO: staff y equipo por día (opcional, compatible con lo viejo) ----
+  // Si el día trae "cantidadBaristas" propio, se usa ESE número para ese
+  // día puntual (día 1 con 2 baristas, día 2 con 3, etc.). Si un día no lo
+  // trae, cae al número global de siempre — así una cotización mitad
+  // vieja mitad nueva no rompe nada.
+  const usaBaristasPorDia = dias.some((d) => d.cantidadBaristas != null && d.cantidadBaristas !== '')
+  let sueldoBaristasNuevo = sueldoBaristas
+  let viaticosBaristasNuevo = viaticosBaristas
+  if (usaBaristasPorDia) {
+    sueldoBaristasNuevo = dias.reduce((sum, d) => {
+      const baristasDia = d.cantidadBaristas != null && d.cantidadBaristas !== '' ? Number(d.cantidadBaristas) : inputs.cantidad_baristas
+      return sum + baristasDia * horasEntreHorarios(d) * c.sueldo_barista_hora
+    }, 0)
+    viaticosBaristasNuevo = dias.reduce((sum, d) => {
+      const baristasDia = d.cantidadBaristas != null && d.cantidadBaristas !== '' ? Number(d.cantidadBaristas) : inputs.cantidad_baristas
+      return sum + baristasDia * c.extra_viaticos_barista
+    }, 0)
+  }
+  const totalManoDeObraFinal = usaBaristasPorDia
+    ? sueldoBaristasNuevo + viaticosBaristasNuevo + extraBaristaMonto
+    : totalManoDeObra
+
+  // Equipo extra por día — cada día trae su propia lista de ítems ya
+  // resueltos (producto de cantidad × tarifa × (1+margen), calculado en
+  // NuevaCotizacion.jsx al elegir del catálogo). Si NINGÚN día trae esto,
+  // se usa el cálculo viejo de los 3 dropdowns planos, tal cual siempre.
+  const usaEquipoPorDia = dias.some((d) => Array.isArray(d.equipoExtra) && d.equipoExtra.length > 0)
+  const alquilerEquipoExtraNuevo = usaEquipoPorDia
+    ? dias.reduce((sum, d) => sum + (d.equipoExtra || []).reduce((s, it) => s + (Number(it.costoDia) || 0), 0), 0)
+    : 0
+  const alquilerEquipoExtra = usaEquipoPorDia ? alquilerEquipoExtraNuevo : alquilerEquipoExtraViejo
+
+
 
   const flete = inputs.costo_flete || 0
   // "Seguro" y "ART" son el mismo concepto — el ART sigue siendo
@@ -160,7 +191,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   const extraDistancia = Number(inputs.extra_distancia) || 0
 
   const costoTotalSinImprevistos =
-    totalInsumos + totalManoDeObra + amortizacionTotal +
+    totalInsumos + totalManoDeObraFinal + amortizacionTotal +
     alquilerEquipoExtra + flete + art + clausulaRc +
     extraDistancia + costoAguaOperativa
 
@@ -194,10 +225,12 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     removedoresTotal, calcosTotal, logo3dTotal,
     // costos
     insumosEsenciales, recargoPremium, costoCalcos, costoLogo3d, totalInsumos,
-    sueldoBaristas, viaticosBaristas, extraBaristaMonto, totalManoDeObra,
+    sueldoBaristas: totalManoDeObraFinal === totalManoDeObra ? sueldoBaristas : sueldoBaristasNuevo,
+    viaticosBaristas: totalManoDeObraFinal === totalManoDeObra ? viaticosBaristas : viaticosBaristasNuevo,
+    extraBaristaMonto, totalManoDeObra: totalManoDeObraFinal, usaBaristasPorDia,
     amortizacionDia, amortizacionTotal,
     cantidadMaquina1Grupo, cantidadMaquina2Grupos, cantidadMolinoExtra,
-    alquilerMaquina1Grupo, alquilerMaquina2Grupos, alquilerMolinoExtra, alquilerEquipoExtra,
+    alquilerMaquina1Grupo, alquilerMaquina2Grupos, alquilerMolinoExtra, alquilerEquipoExtra, usaEquipoPorDia,
     flete, art, clausulaRc,
     extraDistancia,
     costoTotalSinImprevistos, imprevistosPct, imprevistosMonto,
@@ -210,5 +243,8 @@ export function configArrayToObject(configRows) {
 }
 
 export function amortizacionesArrayToObject(rows) {
-  return Object.fromEntries(rows.map((r) => [r.tipo, Number(r.monto_dia)]))
+  // Devuelve { monto, porDia } por tipo — antes devolvía solo el número.
+  // porDia=true es el comportamiento de siempre (monto_dia × cantidad de
+  // días). porDia=false es un monto FIJO por evento (caso "barra chica").
+  return Object.fromEntries(rows.map((r) => [r.tipo, { monto: Number(r.monto_dia), porDia: r.por_dia !== false }]))
 }
