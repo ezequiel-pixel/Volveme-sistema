@@ -122,8 +122,15 @@ export default function EventoDetalle() {
    * operativo, reservas de equipo) — la idea es que desaparezca de la
    * lista de Eventos por completo, no que quede ahí con otro estado
    * confundiendo. La cotización de origen NO se borra: vuelve a
-   * "enviada" para que reaparezca en Cotizaciones como pendiente,
-   * lista para aceptarla bien cuando corresponda. */
+   * "enviada" para que reaparezca en Cotizaciones como pendiente.
+   *
+   * OJO — verificado en la base real: cotizaciones.evento_id → eventos.id
+   * tiene ON DELETE CASCADE. Si se borra el evento sin antes poner
+   * evento_id = NULL en la cotización, Postgres arrastra y borra la
+   * cotización TAMBIÉN (aunque el estado se haya actualizado un
+   * instante antes — el cascade la borra igual). Por eso el orden acá
+   * es clave: primero desenganchar (evento_id = null) y recién después
+   * borrar el evento. */
   async function quitarDeEventos() {
     const confirmado = confirm(
       `¿Quitar "${evento.nombre}" de Eventos?\n\n` +
@@ -132,19 +139,40 @@ export default function EventoDetalle() {
     )
     if (!confirmado) return
 
-    await supabase.from('evento_ajustes').delete().eq('evento_id', id)
-    await supabase.from('evento_staff').delete().eq('evento_id', id)
+    if (evento.cotizacion_id) {
+      // 1) Desenganchar la cotización del evento (evento_id → NULL) para
+      //    que el ON DELETE CASCADE no la arrastre al borrar el evento
+      //    más abajo. Al mismo tiempo, la devolvemos a "enviada".
+      const { error: errCot } = await supabase
+        .from('cotizaciones')
+        .update({ evento_id: null, estado: 'enviada' })
+        .eq('id', evento.cotizacion_id)
+      if (errCot) {
+        alert('No se pudo desenganchar la cotización antes de borrar: ' + errCot.message)
+        return
+      }
+
+      // 2) Si otra cotización más nueva la había "recotizado" (apunta a
+      //    esta por recotizada_desde_id), esa referencia queda igual —
+      //    ya no hace falta tocarla, porque esta cotización ya no se va
+      //    a borrar (no la va a arrastrar ningún cascade).
+    }
+
+    const { error: errAjustes } = await supabase.from('evento_ajustes').delete().eq('evento_id', id)
+    if (errAjustes) { alert('No se pudo borrar los ajustes de precio: ' + errAjustes.message); return }
+
+    const { error: errStaff } = await supabase.from('evento_staff').delete().eq('evento_id', id)
+    if (errStaff) { alert('No se pudo borrar el staff asignado: ' + errStaff.message); return }
 
     const { data: diasEvento } = await supabase.from('evento_dias').select('id').eq('evento_id', id)
     const diaIds = (diasEvento || []).map((d) => d.id)
     if (diaIds.length > 0) {
-      await supabase.from('equipo_reservas').delete().in('evento_dia_id', diaIds)
+      const { error: errReservas } = await supabase.from('equipo_reservas').delete().in('evento_dia_id', diaIds)
+      if (errReservas) { alert('No se pudo borrar las reservas de equipo: ' + errReservas.message); return }
     }
-    await supabase.from('evento_dias').delete().eq('evento_id', id)
 
-    if (evento.cotizacion_id) {
-      await supabase.from('cotizaciones').update({ estado: 'enviada' }).eq('id', evento.cotizacion_id)
-    }
+    const { error: errDias } = await supabase.from('evento_dias').delete().eq('evento_id', id)
+    if (errDias) { alert('No se pudo borrar el cronograma del evento: ' + errDias.message); return }
 
     const { error: errBorrado } = await supabase.from('eventos').delete().eq('id', id)
     if (errBorrado) {
