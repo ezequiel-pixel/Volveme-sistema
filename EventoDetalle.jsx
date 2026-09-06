@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
 import { armarLinkWhatsapp } from '../lib/generarPdf'
-import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList, ListChecks } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList, ListChecks, Pencil, Trash2 } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -33,6 +33,7 @@ const TIPO_LABEL = { barista: 'Barista', logistica: 'Logística', proveedor: 'Pr
 
 export default function EventoDetalle() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [evento, setEvento] = useState(null)
   const [dias, setDias] = useState([])
   const [cotizacion, setCotizacion] = useState(null)
@@ -116,26 +117,80 @@ export default function EventoDetalle() {
     return data || []
   }
 
-  /** Para cuando una cotización se marcó "aceptada" por error. NO borra
-   * nada — el staff asignado, los ajustes de precio y el cronograma
-   * quedan intactos. Revierte los DOS lados de la relación: el evento
-   * vuelve a estado "cotizado" y la cotización de origen vuelve a
-   * "enviada" (como si nunca se hubiera aceptado). Editar (cambiar
-   * nivel, agregar bebidas, etc.) es una acción totalmente distinta —
-   * esa vive en "Equipo y logística" → Editar. */
-  async function volverACotizado() {
+  /** Para cuando una cotización se marcó "aceptada" por error. Esto SÍ
+   * borra el evento (staff asignado, ajustes de precio, cronograma
+   * operativo, reservas de equipo) — la idea es que desaparezca de la
+   * lista de Eventos por completo, no que quede ahí con otro estado
+   * confundiendo. La cotización de origen NO se borra: vuelve a
+   * "enviada" para que reaparezca en Cotizaciones como pendiente.
+   *
+   * OJO — verificado en la base real: cotizaciones.evento_id → eventos.id
+   * tiene ON DELETE CASCADE. Si se borra el evento sin antes poner
+   * evento_id = NULL en la cotización, Postgres arrastra y borra la
+   * cotización TAMBIÉN (aunque el estado se haya actualizado un
+   * instante antes — el cascade la borra igual). Por eso el orden acá
+   * es clave: primero desenganchar (evento_id = null) y recién después
+   * borrar el evento. */
+  async function quitarDeEventos() {
     const confirmado = confirm(
-      `¿Volver "${evento.nombre}" a estado "Cotizado"?\n\n` +
-      `Esto NO borra nada — el staff asignado, los ajustes de precio y el cronograma quedan como están. ` +
-      `El evento pasa a "cotizado" y la cotización de origen vuelve a "enviada", por si se confirmó por error.`
+      `¿Quitar "${evento.nombre}" de Eventos?\n\n` +
+      `Esto borra el evento (staff asignado, ajustes de precio, cronograma operativo) — deja de aparecer en la lista de Eventos.\n\n` +
+      `La cotización de origen NO se borra: vuelve a "Enviada" y reaparece en Cotizaciones, pendiente de aceptar de nuevo.`
     )
     if (!confirmado) return
 
-    await supabase.from('eventos').update({ estado: 'cotizado' }).eq('id', id)
     if (evento.cotizacion_id) {
-      await supabase.from('cotizaciones').update({ estado: 'enviada' }).eq('id', evento.cotizacion_id)
+      // 1) Desenganchar TODAS las cotizaciones que tengan evento_id
+      //    apuntando a este evento — no alcanza con desenganchar solo la
+      //    que el evento señala como origen (evento.cotizacion_id),
+      //    porque puede existir OTRA cotización (ej. una recotización
+      //    duplicada) que sea la que realmente tiene el evento_id
+      //    puesto, y esa es la que dispara el CASCADE al borrar el
+      //    evento. Desenganchamos por evento_id, no por id.
+      const { error: errDesenganche } = await supabase
+        .from('cotizaciones')
+        .update({ evento_id: null })
+        .eq('evento_id', id)
+      if (errDesenganche) {
+        alert('No se pudo desenganchar la(s) cotización(es) antes de borrar: ' + errDesenganche.message)
+        return
+      }
+
+      // 2) Recién ahora, la cotización de origen (la que el evento
+      //    señala) vuelve a "enviada" — visible de nuevo en Cotizaciones.
+      const { error: errCot } = await supabase
+        .from('cotizaciones')
+        .update({ estado: 'enviada' })
+        .eq('id', evento.cotizacion_id)
+      if (errCot) {
+        alert('No se pudo devolver la cotización a "enviada": ' + errCot.message)
+        return
+      }
     }
-    cargarCotizacionYResultado()
+
+    const { error: errAjustes } = await supabase.from('evento_ajustes').delete().eq('evento_id', id)
+    if (errAjustes) { alert('No se pudo borrar los ajustes de precio: ' + errAjustes.message); return }
+
+    const { error: errStaff } = await supabase.from('evento_staff').delete().eq('evento_id', id)
+    if (errStaff) { alert('No se pudo borrar el staff asignado: ' + errStaff.message); return }
+
+    const { data: diasEvento } = await supabase.from('evento_dias').select('id').eq('evento_id', id)
+    const diaIds = (diasEvento || []).map((d) => d.id)
+    if (diaIds.length > 0) {
+      const { error: errReservas } = await supabase.from('equipo_reservas').delete().in('evento_dia_id', diaIds)
+      if (errReservas) { alert('No se pudo borrar las reservas de equipo: ' + errReservas.message); return }
+    }
+
+    const { error: errDias } = await supabase.from('evento_dias').delete().eq('evento_id', id)
+    if (errDias) { alert('No se pudo borrar el cronograma del evento: ' + errDias.message); return }
+
+    const { error: errBorrado } = await supabase.from('eventos').delete().eq('id', id)
+    if (errBorrado) {
+      alert('No se pudo terminar de borrar el evento: ' + errBorrado.message)
+      return
+    }
+
+    navigate('/cotizaciones')
   }
 
   function construirInputsRecalculo(cot, cotDias) {
@@ -309,15 +364,22 @@ export default function EventoDetalle() {
           <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Ficha de evento</p>
           <h1 className="font-display text-3xl mb-2">{evento.nombre}</h1>
           <span className={`text-xs px-2.5 py-1 rounded-full ${estadoStyles[evento.estado]}`}>{evento.estado}</span>
-          <button
-            onClick={volverACotizado}
-            className="ml-3 text-xs text-ink-light hover:text-coral underline decoration-dotted"
-            title="Por si esta cotización se marcó como aceptada por error — no borra nada"
-          >
-            ¿Se confirmó por error? Volver a Cotizado
-          </button>
         </div>
         <div className="flex flex-wrap gap-2 flex-shrink-0">
+          {cotizacion && !formEdicionRapida && (
+            <button
+              onClick={() => setFormEdicionRapida({
+                calcos: cotizacion.calcos || false,
+                cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
+                cantidad_baristas: cotizacion.cantidad_baristas || 1,
+                tipo_barra: cotizacion.tipo_barra || tiposBarra[0] || '',
+                nivel: cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial',
+              })}
+              className="flex items-center justify-center gap-1.5 bg-orange text-paper text-sm rounded px-4 py-2 hover:bg-orange/90 transition-colors"
+            >
+              <Pencil size={15} /> Editar evento
+            </button>
+          )}
           {evento.cotizacion_id && (
             <Link
               to={`/cotizaciones/${evento.cotizacion_id}/presupuesto`}
@@ -339,8 +401,84 @@ export default function EventoDetalle() {
           >
             <ListChecks size={15} /> Checklist
           </Link>
+          <button
+            onClick={quitarDeEventos}
+            className="flex items-center justify-center gap-1.5 border border-coral text-coral text-sm rounded px-4 py-2 hover:bg-coral-light transition-colors"
+            title="Por si esta cotización se marcó como aceptada por error"
+          >
+            <Trash2 size={15} /> Quitar de Eventos
+          </button>
         </div>
       </div>
+
+      {cotizacion && formEdicionRapida && (
+        <div className="border border-orange rounded-lg p-5 bg-paper-card mb-8">
+          <p className="text-sm font-medium text-ink mb-1">Editando el evento</p>
+          <p className="text-xs text-ink-light mb-4">
+            Estos son los campos que suelen cambiar (upgrade de nivel, más baristas, etc.). El precio original queda fijo — la diferencia que genere este cambio se guarda abajo, en "Ajustes de precio".
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">Cantidad de baristas pedidos</label>
+              <input
+                type="number" min="1" className="input"
+                value={formEdicionRapida.cantidad_baristas}
+                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_baristas: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">Tipo de barra</label>
+              <select
+                className="input"
+                value={formEdicionRapida.tipo_barra}
+                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, tipo_barra: e.target.value }))}
+              >
+                {tiposBarra.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">Nivel</label>
+              <select
+                className="input"
+                value={formEdicionRapida.nivel}
+                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, nivel: e.target.value }))}
+              >
+                <option value="Esencial">Esencial</option>
+                <option value="Premium">Premium</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">Cantidad de cafés (vacío = automático)</label>
+              <input
+                type="number" min="0" className="input"
+                value={formEdicionRapida.cantidad_cafes_override}
+                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_cafes_override: e.target.value }))}
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-ink-mid mt-3">
+            <input
+              type="checkbox" checked={formEdicionRapida.calcos}
+              onChange={(e) => setFormEdicionRapida((f) => ({ ...f, calcos: e.target.checked }))}
+            />
+            Calcos
+          </label>
+          <div className="flex gap-2 mt-4">
+            <button onClick={guardarEdicionRapida} className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors">
+              Guardar cambios
+            </button>
+            <button onClick={() => setFormEdicionRapida(null)} className="border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!cotizacion && (
+        <div className="border border-rule rounded-lg p-4 bg-paper-card mb-8 text-sm text-ink-light">
+          Este evento no tiene una cotización asociada (se cargó manualmente), así que no hay nada que recalcular — no aparece el botón de Editar.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
         <div className="space-y-6">
@@ -439,102 +577,25 @@ export default function EventoDetalle() {
             </div>
           )}
 
-          {/* Equipo y logística */}
+          {/* Equipo y logística — solo lectura. Para editar, usá el botón
+              "Editar evento" de arriba (el formulario aparece ahí, más
+              visible que escondido acá adentro). */}
           {cotizacion && (
             <div className="border border-rule rounded-lg p-5 bg-paper-card">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs uppercase tracking-wide text-ink-light flex items-center gap-1.5">
-                  <Truck size={13} /> Equipo y logística
-                </p>
-                {!formEdicionRapida && (
-                  <button
-                    onClick={() => setFormEdicionRapida({
-                      calcos: cotizacion.calcos || false,
-                      cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
-                      cantidad_baristas: cotizacion.cantidad_baristas || 1,
-                      tipo_barra: cotizacion.tipo_barra || tiposBarra[0] || '',
-                      nivel: cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial',
-                    })}
-                    className="text-xs text-wine hover:underline"
-                  >
-                    Editar
-                  </button>
-                )}
+              <p className="text-xs uppercase tracking-wide text-ink-light flex items-center gap-1.5 mb-4">
+                <Truck size={13} /> Equipo y logística
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
+                <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
+                <InfoItem label="Nivel" valor={cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial'} />
+                <InfoItem label="Calcos" valor={cotizacion.calcos ? 'Sí' : 'No'} />
+                <InfoItem label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
+                <InfoItem label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
+                <InfoItem label="Molino Faemma 500 extra" valor={cotizacion.cantidad_molino_extra > 0 ? `${cotizacion.cantidad_molino_extra}` : 'No'} />
+                <InfoItem label="ART" valor={cotizacion.art ? `Sí — ${money(cotizacion.art_monto)}` : 'No'} />
+                <InfoItem label="Costo de flete" valor={money(cotizacion.costo_flete)} />
               </div>
-
-              {!formEdicionRapida ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
-                  <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
-                  <InfoItem label="Nivel" valor={cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial'} />
-                  <InfoItem label="Calcos" valor={cotizacion.calcos ? 'Sí' : 'No'} />
-                  <InfoItem label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
-                  <InfoItem label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
-                  <InfoItem label="Molino Faemma 500 extra" valor={cotizacion.cantidad_molino_extra > 0 ? `${cotizacion.cantidad_molino_extra}` : 'No'} />
-                  <InfoItem label="ART" valor={cotizacion.art ? `Sí — ${money(cotizacion.art_monto)}` : 'No'} />
-                  <InfoItem label="Costo de flete" valor={money(cotizacion.costo_flete)} />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-xs text-ink-light">
-                    Estos son los campos que suelen cambiar la semana previa al evento — no toca precio ni el resto de la cotización.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-ink-mid mb-1">Cantidad de baristas pedidos</label>
-                      <input
-                        type="number" min="1" className="input"
-                        value={formEdicionRapida.cantidad_baristas}
-                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_baristas: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-ink-mid mb-1">Tipo de barra</label>
-                      <select
-                        className="input"
-                        value={formEdicionRapida.tipo_barra}
-                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, tipo_barra: e.target.value }))}
-                      >
-                        {tiposBarra.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-ink-mid mb-1">Nivel</label>
-                      <select
-                        className="input"
-                        value={formEdicionRapida.nivel}
-                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, nivel: e.target.value }))}
-                      >
-                        <option value="Esencial">Esencial</option>
-                        <option value="Premium">Premium</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-ink-mid mb-1">Cantidad de cafés (vacío = automático)</label>
-                      <input
-                        type="number" min="0" className="input"
-                        value={formEdicionRapida.cantidad_cafes_override}
-                        onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_cafes_override: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-ink-mid">
-                    <input
-                      type="checkbox" checked={formEdicionRapida.calcos}
-                      onChange={(e) => setFormEdicionRapida((f) => ({ ...f, calcos: e.target.checked }))}
-                    />
-                    Calcos
-                  </label>
-                  <div className="flex gap-2">
-                    <button onClick={guardarEdicionRapida} className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors">
-                      Guardar
-                    </button>
-                    <button onClick={() => setFormEdicionRapida(null)} className="border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors">
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
