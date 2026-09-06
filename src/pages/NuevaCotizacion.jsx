@@ -399,6 +399,15 @@ export default function NuevaCotizacion() {
 
     if (errCot) { setSaving(false); setError(`No se pudo guardar la cotización: ${errCot.message}`); console.error(errCot); return }
 
+    // FIX del bug "se pierde la cotización al ir atrás sin guardar": la
+    // original solo se marca "recotizada" ACÁ, una vez que la nueva ya
+    // se guardó con éxito — no apenas se hace clic en "Re-cotizar" en la
+    // lista. Si el usuario abandona el formulario sin guardar, la
+    // original queda intacta con su estado de siempre.
+    if (recotizarDesdeId) {
+      await supabase.from('cotizaciones').update({ estado: 'recotizada' }).eq('id', recotizarDesdeId)
+    }
+
     const { error: errDias } = await supabase.from('cotizacion_dias').insert(
       diasOrdenados.map((d, i) => ({
         cotizacion_id: nuevaCot.id,

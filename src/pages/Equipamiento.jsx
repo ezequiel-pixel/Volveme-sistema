@@ -606,3 +606,4 @@ function FormNuevoEquipo({ form, setForm, onGuardar, onCerrar }) {
     </div>
   )
 }
+

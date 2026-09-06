@@ -93,7 +93,13 @@ export default function Cotizaciones() {
   }
 
   async function recotizar(cotizacion) {
-    await supabase.from('cotizaciones').update({ estado: 'recotizada' }).eq('id', cotizacion.id)
+    // FIX: antes esto marcaba la cotización como "recotizada" apenas se
+    // hacía clic, ANTES de que existiera la nueva versión. Si el usuario
+    // volvía atrás sin guardar en NuevaCotizacion, la original quedaba
+    // marcada como reemplazada para siempre sin que nada la reemplazara
+    // — efectivamente "se perdía". Ahora solo navega; el cambio de estado
+    // se hace en NuevaCotizacion.jsx recién cuando la nueva versión se
+    // guardó con éxito.
     navigate(`/cotizaciones/nueva?desde=${cotizacion.id}`)
   }
 
