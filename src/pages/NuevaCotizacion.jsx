@@ -123,7 +123,7 @@ const defaultInputs = {
   extra_distancia: 0,
 }
 
-const defaultDia = () => ({ modo: 'horario', fecha: '', horaInicio: '08:00', horaFin: '18:00', duracionHoras: '', cantidadBaristas: '', equipoExtra: [] })
+const defaultDia = () => ({ modo: 'horario', fecha: '', horaInicio: '08:00', horaFin: '18:00', duracionHoras: '', cantidadBaristas: '', tipoBarra: '', equipoExtra: [] })
 
 export default function NuevaCotizacion() {
   const navigate = useNavigate()
@@ -264,6 +264,7 @@ export default function NuevaCotizacion() {
           horaFin: d.hora_fin?.slice(0, 5) || '18:00',
           duracionHoras: d.duracion_horas != null ? String(d.duracion_horas) : '',
           cantidadBaristas: d.cantidad_baristas != null ? String(d.cantidad_baristas) : '',
+          tipoBarra: d.tipo_barra || '',
           equipoExtra: (reservasCot || [])
             .filter((r) => r.cotizacion_dia_id === d.id)
             .map((r) => ({ equipoCatalogoId: r.equipo_catalogo_id, cantidad: r.cantidad, costoDia: r.costo_dia })),
@@ -329,7 +330,11 @@ export default function NuevaCotizacion() {
   }
 
   function agregarEquipoADia(diaIndex) {
-    const primero = catalogoEquipos.find((e) => e.proveedor_id) || catalogoEquipos[0]
+    // Solo equipo de terceros (Facu, Peipe, mobiliario externo) — el
+    // propio de Volveme ya está cubierto por "Tipo de barra" (arriba) y
+    // no tiene sentido elegirlo acá: siempre da $0 y no representa nada
+    // real (no "activa" tu propio ECM ni tu propio mobiliario).
+    const primero = catalogoEquipos.find((e) => e.proveedor_id)
     if (!primero) return
     setDias((prev) => prev.map((d, i) => {
       if (i !== diaIndex) return d
@@ -470,6 +475,7 @@ export default function NuevaCotizacion() {
         hora_fin: (d.modo || 'horario') === 'horas' ? null : d.horaFin,
         duracion_horas: (d.modo || 'horario') === 'horas' ? Number(d.duracionHoras) || null : null,
         cantidad_baristas: d.cantidadBaristas !== '' && d.cantidadBaristas != null ? Number(d.cantidadBaristas) : null,
+        tipo_barra: d.tipoBarra || null,
         orden: i,
       }))
     ).select('id')
@@ -630,6 +636,17 @@ export default function NuevaCotizacion() {
                         />
                       </Field>
 
+                      <Field label="Tipo de barra este día (vacío = usar el tipo general de abajo)">
+                        <select
+                          value={dia.tipoBarra}
+                          onChange={(e) => updateDia(i, 'tipoBarra', e.target.value)}
+                          className="input"
+                        >
+                          <option value="">— usar el general ({inputs.tipo_barra || 'sin elegir'})</option>
+                          {tiposBarra.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </Field>
+
                       {(dia.equipoExtra || []).length > 0 && (
                         <div className="space-y-1.5">
                           {dia.equipoExtra.map((item, j) => {
@@ -642,12 +659,14 @@ export default function NuevaCotizacion() {
                                   className="input text-xs flex-1"
                                 >
                                   {Object.entries(
-                                    catalogoEquipos.reduce((grupos, e) => {
-                                      const nombreGrupo = e.proveedores?.nombre_fantasia || 'Volveme (propio)'
-                                      grupos[nombreGrupo] = grupos[nombreGrupo] || []
-                                      grupos[nombreGrupo].push(e)
-                                      return grupos
-                                    }, {})
+                                    catalogoEquipos
+                                      .filter((e) => e.proveedor_id) // solo terceros — el propio no aplica acá
+                                      .reduce((grupos, e) => {
+                                        const nombreGrupo = e.proveedores?.nombre_fantasia || 'Proveedor'
+                                        grupos[nombreGrupo] = grupos[nombreGrupo] || []
+                                        grupos[nombreGrupo].push(e)
+                                        return grupos
+                                      }, {})
                                   ).map(([grupo, items]) => (
                                     <optgroup key={grupo} label={grupo}>
                                       {items.map((e) => (
@@ -679,7 +698,7 @@ export default function NuevaCotizacion() {
                       <button
                         type="button"
                         onClick={() => agregarEquipoADia(i)}
-                        disabled={catalogoEquipos.length === 0}
+                        disabled={!catalogoEquipos.some((e) => e.proveedor_id)}
                         className="flex items-center gap-1 text-xs text-wine hover:underline disabled:opacity-40"
                       >
                         <Plus size={12} /> Agregar equipo extra a este día (Facu, Peipe, mobiliario…)

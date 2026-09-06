@@ -127,7 +127,29 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
 
   const amortInfo = amortizaciones[inputs.tipo_barra] ?? { monto: c.amortizacion_equipo_default ?? 0, porDia: true }
   const amortizacionDia = inputs.amortizacion_override ?? amortInfo.monto
-  const amortizacionTotal = amortInfo.porDia === false ? amortizacionDia : amortizacionDia * cantidadDias
+
+  // ---- NUEVO: tipo de barra por día (chica un día, grande otro, etc.) ----
+  // Si algún día trae "tipoBarra" propio, se resuelve la amortización
+  // día por día (cada uno con SU tipo, o el general de abajo si ese día
+  // no especifica nada). Si ningún día lo trae, se calcula exactamente
+  // como siempre (un solo tipo para todo el evento).
+  const usaTipoBarraPorDia = dias.some((d) => d.tipoBarra != null && d.tipoBarra !== '')
+  let amortizacionTotal
+  if (usaTipoBarraPorDia) {
+    amortizacionTotal = dias.reduce((sum, d) => {
+      const tipo = d.tipoBarra || inputs.tipo_barra
+      const info = amortizaciones[tipo] ?? { monto: c.amortizacion_equipo_default ?? 0, porDia: true }
+      const monto = inputs.amortizacion_override ?? info.monto
+      // Hoy tanto barra chica como grande son "por_dia" (se cobran cada
+      // día que se usan) — cada día de la lista suma su propio monto.
+      // Si en el futuro aparece un tipo "fijo por evento" (por_dia=false)
+      // combinado con tipo_barra por día, esto lo sigue sumando por día
+      // igual (es una simplificación a propósito: hoy no existe ese caso).
+      return sum + monto
+    }, 0)
+  } else {
+    amortizacionTotal = amortInfo.porDia === false ? amortizacionDia : amortizacionDia * cantidadDias
+  }
 
   // Alquiler de equipo extra — por tipo específico y cantidad (antes
   // era un simple on/off "alquiler máquina extra" genérico). Cada
@@ -228,7 +250,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     sueldoBaristas: totalManoDeObraFinal === totalManoDeObra ? sueldoBaristas : sueldoBaristasNuevo,
     viaticosBaristas: totalManoDeObraFinal === totalManoDeObra ? viaticosBaristas : viaticosBaristasNuevo,
     extraBaristaMonto, totalManoDeObra: totalManoDeObraFinal, usaBaristasPorDia,
-    amortizacionDia, amortizacionTotal,
+    amortizacionDia, amortizacionTotal, usaTipoBarraPorDia,
     cantidadMaquina1Grupo, cantidadMaquina2Grupos, cantidadMolinoExtra,
     alquilerMaquina1Grupo, alquilerMaquina2Grupos, alquilerMolinoExtra, alquilerEquipoExtra, usaEquipoPorDia,
     flete, art, clausulaRc,
