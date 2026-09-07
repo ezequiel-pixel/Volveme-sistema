@@ -107,6 +107,17 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   let insumosEsenciales = bebidasReales * costoEsencialPorBebida
   const recargoPremiumPct = c.recargo_premium_pct ?? 0.25
   const recargoPremium = inputs.nivel === 'Premium' ? insumosEsenciales * recargoPremiumPct : 0
+
+  // ---- Primavera/Verano — Espresso Tonic + lattes saborizados (jarabe) +
+  // hielo. A diferencia de Premium (que es un % de recargo), acá se suma
+  // el costo REAL de estos insumos por bebida — no es un porcentaje
+  // inventado, es el costo de tónica + jarabe + hielo tal como se carguen
+  // en Config. Primavera/Verano = Esencial + este extra (no reemplaza
+  // nada del esencial, se le suma). */
+  const costoPrimaveraVeranoPorBebida =
+    (c.costo_tonica_por_bebida || 0) + (c.costo_syrup_por_bebida || 0) + (c.costo_hielo_por_bebida || 0)
+  const recargoPrimaveraVerano = inputs.nivel === 'Primavera/Verano' ? bebidasReales * costoPrimaveraVeranoPorBebida : 0
+
   const costoCalcos = inputs.calcos ? bebidasReales * c.costo_calco_unidad : 0
   const costoLogo3d = inputs.logo_3d ? bebidasReales * c.costo_logo3d_unidad : 0
 
@@ -116,7 +127,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
   // cantidades físicas (kilosCafeTotal, litrosLecheTotal, etc.) se
   // siguen calculando igual — quedan como referencia informativa — pero
   // no se cobran: totalInsumos da $0 y no entra al costo del evento.
-  const totalInsumosCalculado = insumosEsenciales + recargoPremium + costoCalcos + costoLogo3d
+  const totalInsumosCalculado = insumosEsenciales + recargoPremium + recargoPrimaveraVerano + costoCalcos + costoLogo3d
   const totalInsumos = inputs.sin_insumos ? 0 : totalInsumosCalculado
 
   const sueldoBaristas =
@@ -246,7 +257,7 @@ export function calcularCotizacion(inputs, config, amortizaciones) {
     cantidadVasos, cajasVasos, sobresAzucarTotal, sobresEdulcoranteTotal,
     removedoresTotal, calcosTotal, logo3dTotal,
     // costos
-    insumosEsenciales, recargoPremium, costoCalcos, costoLogo3d, totalInsumos,
+    insumosEsenciales, recargoPremium, recargoPrimaveraVerano, costoCalcos, costoLogo3d, totalInsumos,
     sueldoBaristas: totalManoDeObraFinal === totalManoDeObra ? sueldoBaristas : sueldoBaristasNuevo,
     viaticosBaristas: totalManoDeObraFinal === totalManoDeObra ? viaticosBaristas : viaticosBaristasNuevo,
     extraBaristaMonto, totalManoDeObra: totalManoDeObraFinal, usaBaristasPorDia,

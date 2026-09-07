@@ -719,6 +719,7 @@ export default function NuevaCotizacion() {
                   <select value={inputs.nivel} onChange={(e) => update('nivel', e.target.value)} className="input">
                     <option value="Esencial">Esencial</option>
                     <option value="Premium">Premium</option>
+                    <option value="Primavera/Verano">Primavera/Verano</option>
                   </select>
                 </Field>
                 <Field label="Tamaño de vaso">

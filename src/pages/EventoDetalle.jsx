@@ -10,6 +10,16 @@ const money = (n) =>
 
 const redondearArriba = (n) => Math.ceil((n || 0) / 100) * 100
 
+// El nivel se guarda en minúsculas en la base (esencial/premium/primavera-verano)
+// pero se muestra y edita con mayúscula prolija — una sola función para
+// no repetir la conversión (y el bug de "todo lo que no es premium cae
+// en Esencial") en 3 lugares distintos.
+function nivelDesdeDb(nivelDb) {
+  if (nivelDb === 'premium') return 'Premium'
+  if (nivelDb === 'primavera/verano' || nivelDb === 'primavera-verano') return 'Primavera/Verano'
+  return 'Esencial'
+}
+
 function formatFechaHora(fechaStr) {
   return new Date(fechaStr).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
@@ -140,22 +150,32 @@ export default function EventoDetalle() {
     if (!confirmado) return
 
     if (evento.cotizacion_id) {
-      // 1) Desenganchar la cotización del evento (evento_id → NULL) para
-      //    que el ON DELETE CASCADE no la arrastre al borrar el evento
-      //    más abajo. Al mismo tiempo, la devolvemos a "enviada".
-      const { error: errCot } = await supabase
+      // 1) Desenganchar TODAS las cotizaciones que tengan evento_id
+      //    apuntando a este evento — no alcanza con desenganchar solo la
+      //    que el evento señala como origen (evento.cotizacion_id),
+      //    porque puede existir OTRA cotización (ej. una recotización
+      //    duplicada) que sea la que realmente tiene el evento_id
+      //    puesto, y esa es la que dispara el CASCADE al borrar el
+      //    evento. Desenganchamos por evento_id, no por id.
+      const { error: errDesenganche } = await supabase
         .from('cotizaciones')
-        .update({ evento_id: null, estado: 'enviada' })
-        .eq('id', evento.cotizacion_id)
-      if (errCot) {
-        alert('No se pudo desenganchar la cotización antes de borrar: ' + errCot.message)
+        .update({ evento_id: null })
+        .eq('evento_id', id)
+      if (errDesenganche) {
+        alert('No se pudo desenganchar la(s) cotización(es) antes de borrar: ' + errDesenganche.message)
         return
       }
 
-      // 2) Si otra cotización más nueva la había "recotizado" (apunta a
-      //    esta por recotizada_desde_id), esa referencia queda igual —
-      //    ya no hace falta tocarla, porque esta cotización ya no se va
-      //    a borrar (no la va a arrastrar ningún cascade).
+      // 2) Recién ahora, la cotización de origen (la que el evento
+      //    señala) vuelve a "enviada" — visible de nuevo en Cotizaciones.
+      const { error: errCot } = await supabase
+        .from('cotizaciones')
+        .update({ estado: 'enviada' })
+        .eq('id', evento.cotizacion_id)
+      if (errCot) {
+        alert('No se pudo devolver la cotización a "enviada": ' + errCot.message)
+        return
+      }
     }
 
     const { error: errAjustes } = await supabase.from('evento_ajustes').delete().eq('evento_id', id)
@@ -189,7 +209,7 @@ export default function EventoDetalle() {
         fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5),
       })),
       cantidad_pax: cot.cantidad_pax || 0,
-      nivel: cot.nivel === 'premium' ? 'Premium' : 'Esencial',
+      nivel: nivelDesdeDb(cot.nivel),
       tamano_vaso: cot.tamano_vaso,
       cantidad_cafes_override: cot.cantidad_cafes_override,
       sin_insumos: cot.sin_insumos,
@@ -363,7 +383,7 @@ export default function EventoDetalle() {
                 cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
                 cantidad_baristas: cotizacion.cantidad_baristas || 1,
                 tipo_barra: cotizacion.tipo_barra || tiposBarra[0] || '',
-                nivel: cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial',
+                nivel: nivelDesdeDb(cotizacion.nivel),
               })}
               className="flex items-center justify-center gap-1.5 bg-orange text-paper text-sm rounded px-4 py-2 hover:bg-orange/90 transition-colors"
             >
@@ -435,6 +455,7 @@ export default function EventoDetalle() {
               >
                 <option value="Esencial">Esencial</option>
                 <option value="Premium">Premium</option>
+                <option value="Primavera/Verano">Primavera/Verano</option>
               </select>
             </div>
             <div>
@@ -555,7 +576,7 @@ export default function EventoDetalle() {
                 {resultado.logo3dTotal > 0 && <InsumoLinea label="Logo 3D" valor={`${resultado.logo3dTotal} u.`} />}
               </div>
               <p className="text-xs text-ink-light mt-4 pt-3 border-t border-rule">
-                Calculado sobre {resultado.bebidasReales.toFixed(1)} bebidas · Nivel {cotizacion.nivel}
+                Calculado sobre {resultado.bebidasReales.toFixed(1)} bebidas · Nivel {nivelDesdeDb(cotizacion.nivel)}
                 {resultado.cantidadDias > 1 && (
                   <> · ≈ {(resultado.bebidasReales / resultado.cantidadDias).toFixed(1)} bebidas por día (repartido parejo entre los {resultado.cantidadDias} días)</>
                 )}
@@ -578,7 +599,7 @@ export default function EventoDetalle() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
                 <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
-                <InfoItem label="Nivel" valor={cotizacion.nivel === 'premium' ? 'Premium' : 'Esencial'} />
+                <InfoItem label="Nivel" valor={nivelDesdeDb(cotizacion.nivel)} />
                 <InfoItem label="Calcos" valor={cotizacion.calcos ? 'Sí' : 'No'} />
                 <InfoItem label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
                 <InfoItem label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
