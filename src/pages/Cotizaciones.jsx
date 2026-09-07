@@ -54,6 +54,8 @@ export default function Cotizaciones() {
           hora_inicio: cotizacion.hora_inicio,
           lugar: cotizacion.lugar,
           cantidad_personas: cotizacion.cantidad_pax,
+          forma_pago: cotizacion.forma_pago,
+          precio_original: cotizacion.precio_final ?? null,
           estado: 'confirmado',
         })
         .select('id')

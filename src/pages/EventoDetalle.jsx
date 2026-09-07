@@ -296,57 +296,72 @@ export default function EventoDetalle() {
    * al evento (o un upgrade pedido por el cliente ya confirmado) — y
    * ahora, a diferencia de antes, deja registro de la diferencia de
    * precio que generó el cambio en vez de pisar todo en silencio.
-   * El precio original (evento.precio_original) nunca se toca acá. */
+   * El precio original (evento.precio_original) nunca se toca acá.
+   * Los datos generales (lugar, pax, forma de pago) se guardan directo
+   * en el evento, sin pasar por ningún cálculo — no afectan precio. */
   async function guardarEdicionRapida() {
-    if (!configCalculo || !amortizacionesCalculo) return
-
-    const { data: cotDias } = await supabase
-      .from('cotizacion_dias')
-      .select('*')
-      .eq('cotizacion_id', cotizacion.id)
-      .order('orden')
-
-    const precioAntes = redondearArriba(calcularCotizacion(construirInputsRecalculo(cotizacion, cotDias), configCalculo, amortizacionesCalculo).precioFinal)
-    const costoAntes = calcularCotizacion(construirInputsRecalculo(cotizacion, cotDias), configCalculo, amortizacionesCalculo).costoTotal
-
-    const cambios = []
-    if (formEdicionRapida.nivel.toLowerCase() !== cotizacion.nivel) cambios.push(`Nivel: ${cotizacion.nivel} → ${formEdicionRapida.nivel.toLowerCase()}`)
-    if (Number(formEdicionRapida.cantidad_baristas) !== cotizacion.cantidad_baristas) cambios.push(`Baristas: ${cotizacion.cantidad_baristas} → ${formEdicionRapida.cantidad_baristas}`)
-    if (formEdicionRapida.tipo_barra !== cotizacion.tipo_barra) cambios.push(`Tipo de barra: ${cotizacion.tipo_barra} → ${formEdicionRapida.tipo_barra}`)
-    if (!!formEdicionRapida.calcos !== !!cotizacion.calcos) cambios.push(`Calcos: ${cotizacion.calcos ? 'sí' : 'no'} → ${formEdicionRapida.calcos ? 'sí' : 'no'}`)
-    const cafesAntes = cotizacion.cantidad_cafes_override ?? null
-    const cafesDespues = formEdicionRapida.cantidad_cafes_override === '' ? null : Number(formEdicionRapida.cantidad_cafes_override)
-    if (cafesAntes !== cafesDespues) cambios.push(`Cantidad de cafés: ${cafesAntes ?? 'automático'} → ${cafesDespues ?? 'automático'}`)
-
-    const cotizacionActualizada = {
-      ...cotizacion,
-      calcos: formEdicionRapida.calcos,
-      cantidad_cafes_override: cafesDespues,
-      cantidad_baristas: Number(formEdicionRapida.cantidad_baristas) || 1,
-      tipo_barra: formEdicionRapida.tipo_barra,
-      nivel: formEdicionRapida.nivel.toLowerCase(),
+    // 1) Datos generales — siempre, tenga o no cotización asociada.
+    const { error: errGenerales } = await supabase.from('eventos').update({
+      lugar: formEdicionRapida.lugar || null,
+      cantidad_personas: formEdicionRapida.cantidad_personas === '' ? null : Number(formEdicionRapida.cantidad_personas),
+      forma_pago: formEdicionRapida.forma_pago || null,
+    }).eq('id', id)
+    if (errGenerales) {
+      alert('No se pudieron guardar los datos generales: ' + errGenerales.message)
+      return
     }
 
-    await supabase.from('cotizaciones').update({
-      calcos: cotizacionActualizada.calcos,
-      cantidad_cafes_override: cotizacionActualizada.cantidad_cafes_override,
-      cantidad_baristas: cotizacionActualizada.cantidad_baristas,
-      tipo_barra: cotizacionActualizada.tipo_barra,
-      nivel: cotizacionActualizada.nivel,
-    }).eq('id', cotizacion.id)
+    // 2) Configuración del servicio — solo si el evento viene de una
+    //    cotización (si es manual, no hay nada que recalcular).
+    if (cotizacion && configCalculo && amortizacionesCalculo) {
+      const { data: cotDias } = await supabase
+        .from('cotizacion_dias')
+        .select('*')
+        .eq('cotizacion_id', cotizacion.id)
+        .order('orden')
 
-    const resultadoDespues = calcularCotizacion(construirInputsRecalculo(cotizacionActualizada, cotDias), configCalculo, amortizacionesCalculo)
-    const precioDespues = redondearArriba(resultadoDespues.precioFinal)
-    const deltaPrecio = precioDespues - precioAntes
-    const deltaCostoReal = resultadoDespues.costoTotal - costoAntes
+      const precioAntes = redondearArriba(calcularCotizacion(construirInputsRecalculo(cotizacion, cotDias), configCalculo, amortizacionesCalculo).precioFinal)
+      const costoAntes = calcularCotizacion(construirInputsRecalculo(cotizacion, cotDias), configCalculo, amortizacionesCalculo).costoTotal
 
-    if (deltaPrecio !== 0 && cambios.length > 0) {
-      await supabase.from('evento_ajustes').insert({
-        evento_id: id,
-        descripcion: cambios.join('; '),
-        delta_costo_real: deltaCostoReal,
-        delta_precio: deltaPrecio,
-      })
+      const cambios = []
+      if (formEdicionRapida.nivel.toLowerCase() !== cotizacion.nivel) cambios.push(`Nivel: ${cotizacion.nivel} → ${formEdicionRapida.nivel.toLowerCase()}`)
+      if (Number(formEdicionRapida.cantidad_baristas) !== cotizacion.cantidad_baristas) cambios.push(`Baristas: ${cotizacion.cantidad_baristas} → ${formEdicionRapida.cantidad_baristas}`)
+      if (formEdicionRapida.tipo_barra !== cotizacion.tipo_barra) cambios.push(`Tipo de barra: ${cotizacion.tipo_barra} → ${formEdicionRapida.tipo_barra}`)
+      if (!!formEdicionRapida.calcos !== !!cotizacion.calcos) cambios.push(`Calcos: ${cotizacion.calcos ? 'sí' : 'no'} → ${formEdicionRapida.calcos ? 'sí' : 'no'}`)
+      const cafesAntes = cotizacion.cantidad_cafes_override ?? null
+      const cafesDespues = formEdicionRapida.cantidad_cafes_override === '' ? null : Number(formEdicionRapida.cantidad_cafes_override)
+      if (cafesAntes !== cafesDespues) cambios.push(`Cantidad de cafés: ${cafesAntes ?? 'automático'} → ${cafesDespues ?? 'automático'}`)
+
+      const cotizacionActualizada = {
+        ...cotizacion,
+        calcos: formEdicionRapida.calcos,
+        cantidad_cafes_override: cafesDespues,
+        cantidad_baristas: Number(formEdicionRapida.cantidad_baristas) || 1,
+        tipo_barra: formEdicionRapida.tipo_barra,
+        nivel: formEdicionRapida.nivel.toLowerCase(),
+      }
+
+      await supabase.from('cotizaciones').update({
+        calcos: cotizacionActualizada.calcos,
+        cantidad_cafes_override: cotizacionActualizada.cantidad_cafes_override,
+        cantidad_baristas: cotizacionActualizada.cantidad_baristas,
+        tipo_barra: cotizacionActualizada.tipo_barra,
+        nivel: cotizacionActualizada.nivel,
+      }).eq('id', cotizacion.id)
+
+      const resultadoDespues = calcularCotizacion(construirInputsRecalculo(cotizacionActualizada, cotDias), configCalculo, amortizacionesCalculo)
+      const precioDespues = redondearArriba(resultadoDespues.precioFinal)
+      const deltaPrecio = precioDespues - precioAntes
+      const deltaCostoReal = resultadoDespues.costoTotal - costoAntes
+
+      if (deltaPrecio !== 0 && cambios.length > 0) {
+        await supabase.from('evento_ajustes').insert({
+          evento_id: id,
+          descripcion: cambios.join('; '),
+          delta_costo_real: deltaCostoReal,
+          delta_precio: deltaPrecio,
+        })
+      }
     }
 
     setFormEdicionRapida(null)
@@ -376,14 +391,19 @@ export default function EventoDetalle() {
           <span className={`text-xs px-2.5 py-1 rounded-full ${estadoStyles[evento.estado]}`}>{evento.estado}</span>
         </div>
         <div className="flex flex-wrap gap-2 flex-shrink-0">
-          {cotizacion && !formEdicionRapida && (
+          {!formEdicionRapida && (
             <button
               onClick={() => setFormEdicionRapida({
-                calcos: cotizacion.calcos || false,
-                cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
-                cantidad_baristas: cotizacion.cantidad_baristas || 1,
-                tipo_barra: cotizacion.tipo_barra || tiposBarra[0] || '',
-                nivel: nivelDesdeDb(cotizacion.nivel),
+                lugar: evento.lugar || '',
+                cantidad_personas: evento.cantidad_personas ?? '',
+                forma_pago: evento.forma_pago || '',
+                ...(cotizacion ? {
+                  calcos: cotizacion.calcos || false,
+                  cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
+                  cantidad_baristas: cotizacion.cantidad_baristas || 1,
+                  tipo_barra: cotizacion.tipo_barra || tiposBarra[0] || '',
+                  nivel: nivelDesdeDb(cotizacion.nivel),
+                } : {}),
               })}
               className="flex items-center justify-center gap-1.5 bg-orange text-paper text-sm rounded px-4 py-2 hover:bg-orange/90 transition-colors"
             >
@@ -421,59 +441,97 @@ export default function EventoDetalle() {
         </div>
       </div>
 
-      {cotizacion && formEdicionRapida && (
+      {formEdicionRapida && (
         <div className="border border-orange rounded-lg p-5 bg-paper-card mb-8">
           <p className="text-sm font-medium text-ink mb-1">Editando el evento</p>
           <p className="text-xs text-ink-light mb-4">
-            Estos son los campos que suelen cambiar (upgrade de nivel, más baristas, etc.). El precio original queda fijo — la diferencia que genere este cambio se guarda abajo, en "Ajustes de precio".
+            Los datos generales (dirección, invitados, forma de pago) se guardan directo, sin afectar el precio.
+            {cotizacion && ' Los que sí afectan el precio (nivel, baristas, etc.) guardan la diferencia abajo, en "Ajustes de precio" — el precio original queda fijo.'}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-ink-mid mb-1">Cantidad de baristas pedidos</label>
+
+          <p className="text-xs uppercase tracking-wide text-ink-light mb-2">Datos generales</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-ink-mid mb-1">Dirección / lugar</label>
               <input
-                type="number" min="1" className="input"
-                value={formEdicionRapida.cantidad_baristas}
-                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_baristas: e.target.value }))}
+                className="input"
+                value={formEdicionRapida.lugar}
+                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, lugar: e.target.value }))}
+                placeholder="Ej: Ciudadela, La Rural…"
               />
             </div>
             <div>
-              <label className="block text-xs text-ink-mid mb-1">Tipo de barra</label>
-              <select
-                className="input"
-                value={formEdicionRapida.tipo_barra}
-                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, tipo_barra: e.target.value }))}
-              >
-                {tiposBarra.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-ink-mid mb-1">Nivel</label>
-              <select
-                className="input"
-                value={formEdicionRapida.nivel}
-                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, nivel: e.target.value }))}
-              >
-                <option value="Esencial">Esencial</option>
-                <option value="Premium">Premium</option>
-                <option value="Primavera/Verano">Primavera/Verano</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-ink-mid mb-1">Cantidad de cafés (vacío = automático)</label>
+              <label className="block text-xs text-ink-mid mb-1">Cantidad de invitados</label>
               <input
                 type="number" min="0" className="input"
-                value={formEdicionRapida.cantidad_cafes_override}
-                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_cafes_override: e.target.value }))}
+                value={formEdicionRapida.cantidad_personas}
+                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_personas: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-ink-mid mb-1">Forma de pago</label>
+              <input
+                className="input"
+                value={formEdicionRapida.forma_pago}
+                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, forma_pago: e.target.value }))}
+                placeholder="Transferencia, efectivo, MP…"
               />
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-ink-mid mt-3">
-            <input
-              type="checkbox" checked={formEdicionRapida.calcos}
-              onChange={(e) => setFormEdicionRapida((f) => ({ ...f, calcos: e.target.checked }))}
-            />
-            Calcos
-          </label>
+
+          {cotizacion && (
+            <>
+              <p className="text-xs uppercase tracking-wide text-ink-light mb-2 pt-3 border-t border-rule">Configuración del servicio (afecta el precio)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-ink-mid mb-1">Cantidad de baristas pedidos</label>
+                  <input
+                    type="number" min="1" className="input"
+                    value={formEdicionRapida.cantidad_baristas}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_baristas: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-ink-mid mb-1">Tipo de barra</label>
+                  <select
+                    className="input"
+                    value={formEdicionRapida.tipo_barra}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, tipo_barra: e.target.value }))}
+                  >
+                    {tiposBarra.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-ink-mid mb-1">Nivel</label>
+                  <select
+                    className="input"
+                    value={formEdicionRapida.nivel}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, nivel: e.target.value }))}
+                  >
+                    <option value="Esencial">Esencial</option>
+                    <option value="Premium">Premium</option>
+                    <option value="Primavera/Verano">Primavera/Verano</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-ink-mid mb-1">Cantidad de cafés (vacío = automático)</label>
+                  <input
+                    type="number" min="0" className="input"
+                    value={formEdicionRapida.cantidad_cafes_override}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, cantidad_cafes_override: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-ink-mid mt-3">
+                <input
+                  type="checkbox" checked={formEdicionRapida.calcos}
+                  onChange={(e) => setFormEdicionRapida((f) => ({ ...f, calcos: e.target.checked }))}
+                />
+                Calcos
+              </label>
+            </>
+          )}
+
           <div className="flex gap-2 mt-4">
             <button onClick={guardarEdicionRapida} className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors">
               Guardar cambios
@@ -487,7 +545,7 @@ export default function EventoDetalle() {
 
       {!cotizacion && (
         <div className="border border-rule rounded-lg p-4 bg-paper-card mb-8 text-sm text-ink-light">
-          Este evento no tiene una cotización asociada (se cargó manualmente), así que no hay nada que recalcular — no aparece el botón de Editar.
+          Este evento no tiene una cotización asociada (se cargó manualmente) — podés editar los datos generales, pero no hay precio que recalcular.
         </div>
       )}
 
@@ -501,6 +559,7 @@ export default function EventoDetalle() {
               <InfoItem icon={Users} label="Invitados (Pax)" valor={evento.cantidad_personas || '—'} />
               <InfoItem icon={MapPin} label="Ubicación" valor={evento.lugar || '—'} />
               <InfoItem icon={Users} label="Teléfono cliente" valor={evento.clientes?.telefono || '—'} />
+              <InfoItem icon={Users} label="Forma de pago" valor={evento.forma_pago || '—'} />
             </div>
           </div>
 

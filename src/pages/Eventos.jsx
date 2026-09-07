@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Plus, X } from 'lucide-react'
 
+const money = (n) =>
+  n == null ? '—' : n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
+
+const CONFIRMADOS = ['confirmado', 'realizado']
+
 const estadoStyles = {
   lead: 'bg-paper-warm text-ink-mid',
   cotizado: 'bg-peach text-orange',
@@ -20,10 +25,20 @@ export default function Eventos() {
     setLoading(true)
     const { data, error } = await supabase
       .from('eventos')
-      .select('id, nombre, fecha, hora_inicio, lugar, estado, cantidad_personas, cotizacion_id, clientes(nombre), evento_dias(id)')
+      .select('id, nombre, fecha, hora_inicio, lugar, estado, cantidad_personas, cotizacion_id, forma_pago, precio_original, clientes(nombre), evento_dias(id)')
       .order('fecha', { ascending: true })
 
-    if (!error) setEventos(data)
+    if (!error && data) {
+      // Precio total real (original + ajustes) desde la vista — así el
+      // listado muestra lo que efectivamente se cobra hoy, no el precio
+      // viejo si el evento se editó después de confirmarse.
+      const ids = data.map((e) => e.id)
+      const { data: precios } = ids.length
+        ? await supabase.from('vw_evento_precio_total').select('evento_id, precio_total_actual').in('evento_id', ids)
+        : { data: [] }
+      const precioPorId = Object.fromEntries((precios || []).map((p) => [p.evento_id, p.precio_total_actual]))
+      setEventos(data.map((e) => ({ ...e, precio_total_actual: precioPorId[e.id] ?? e.precio_original })))
+    }
     setLoading(false)
   }
 
@@ -155,6 +170,13 @@ function ListaEventos({ eventos, atenuado }) {
             <p className="text-xs text-ink-light mt-0.5">
               {ev.lugar || '—'}{ev.cantidad_personas ? ` · ${ev.cantidad_personas} pax` : ''}
             </p>
+            {CONFIRMADOS.includes(ev.estado) && (
+              <p className="text-xs text-ink-mid mt-1 flex items-center gap-2">
+                <span className="font-medium text-wine">{money(ev.precio_total_actual)}</span>
+                <span className="text-ink-light">sin IVA</span>
+                {ev.forma_pago && <span className="text-ink-light">· {ev.forma_pago}</span>}
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -169,6 +191,8 @@ function ListaEventos({ eventos, atenuado }) {
               <th className="px-4 py-3 font-medium">Cliente</th>
               <th className="px-4 py-3 font-medium">Lugar</th>
               <th className="px-4 py-3 font-medium">Pax</th>
+              <th className="px-4 py-3 font-medium">Precio (sin IVA)</th>
+              <th className="px-4 py-3 font-medium">Forma de pago</th>
               <th className="px-4 py-3 font-medium">Estado</th>
             </tr>
           </thead>
@@ -203,6 +227,12 @@ function ListaEventos({ eventos, atenuado }) {
                 <td className="px-4 py-3 text-ink-mid">{ev.clientes?.nombre || '—'}</td>
                 <td className="px-4 py-3 text-ink-mid">{ev.lugar || '—'}</td>
                 <td className="px-4 py-3 text-ink-mid">{ev.cantidad_personas || '—'}</td>
+                <td className="px-4 py-3 text-ink-mid">
+                  {CONFIRMADOS.includes(ev.estado) ? <span className="font-medium text-wine">{money(ev.precio_total_actual)}</span> : '—'}
+                </td>
+                <td className="px-4 py-3 text-ink-mid">
+                  {CONFIRMADOS.includes(ev.estado) ? (ev.forma_pago || '—') : '—'}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-1 rounded-full ${estadoStyles[ev.estado]}`}>
                     {ev.estado}
@@ -227,6 +257,7 @@ function NuevoEventoModal({ onClose, onCreated }) {
     hora_inicio: '',
     lugar: '',
     cantidad_personas: '',
+    forma_pago: '',
     notas: '',
   })
 
@@ -273,6 +304,7 @@ function NuevoEventoModal({ onClose, onCreated }) {
       hora_inicio: form.hora_inicio || null,
       lugar: form.lugar || null,
       cantidad_personas: form.cantidad_personas ? Number(form.cantidad_personas) : null,
+      forma_pago: form.forma_pago || null,
       notas: form.notas || null,
       estado: 'lead',
     })
@@ -355,6 +387,15 @@ function NuevoEventoModal({ onClose, onCreated }) {
               />
             </Field>
           </div>
+
+          <Field label="Forma de pago">
+            <input
+              value={form.forma_pago}
+              onChange={(e) => update('forma_pago', e.target.value)}
+              className="input"
+              placeholder="Transferencia, efectivo, MP…"
+            />
+          </Field>
 
           <Field label="Notas">
             <textarea

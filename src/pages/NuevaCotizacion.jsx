@@ -114,7 +114,7 @@ const money = (n) =>
   (Math.ceil((n || 0) / 100) * 100).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 
 const defaultInputs = {
-  nombre_cliente: '', nombre_evento: '', lugar: '', lugar_lat: null, lugar_lng: null, distancia_km: null,
+  nombre_cliente: '', nombre_evento: '', lugar: '', lugar_lat: null, lugar_lng: null, distancia_km: null, forma_pago: '',
   cantidad_pax: 25, nivel: 'Esencial', tamano_vaso: '6oz',
   cantidad_cafes_override: '', sin_insumos: false, cantidad_baristas: 1, tipo_barra: 'Barra chica 1 grupo',
   amortizacion_override: '', cantidad_maquina_1grupo_extra: 0, cantidad_maquina_2grupos_extra: 0, cantidad_molino_extra: 0,
@@ -226,6 +226,7 @@ export default function NuevaCotizacion() {
           lugar_lat: cot.lugar_lat || null,
           lugar_lng: cot.lugar_lng || null,
           distancia_km: cot.distancia_km || null,
+          forma_pago: cot.forma_pago || '',
           cantidad_pax: cot.cantidad_pax || 25,
           nivel: cot.nivel === 'premium' || cot.nivel === 'Premium' ? 'Premium' : 'Esencial',
           tamano_vaso: cot.tamano_vaso || '6oz',
@@ -423,6 +424,7 @@ export default function NuevaCotizacion() {
       lugar_lat: inputs.lugar_lat || null,
       lugar_lng: inputs.lugar_lng || null,
       distancia_km: inputs.distancia_km || null,
+      forma_pago: inputs.forma_pago || null,
       cantidad_pax: Number(inputs.cantidad_pax) || null,
       nivel: inputs.nivel.toLowerCase(),
       tamano_vaso: inputs.tamano_vaso,
@@ -569,6 +571,11 @@ export default function NuevaCotizacion() {
                 </Field>
                 <Field label="Cantidad de invitados (Pax)">
                   <input type="number" min="0" value={inputs.cantidad_pax} onChange={(e) => update('cantidad_pax', e.target.value)} className="input" />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Forma de pago">
+                  <input value={inputs.forma_pago} onChange={(e) => update('forma_pago', e.target.value)} className="input" placeholder="Transferencia, efectivo, MP…" />
                 </Field>
               </Row>
             </SectionCard>
