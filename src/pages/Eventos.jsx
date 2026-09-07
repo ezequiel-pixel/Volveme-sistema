@@ -37,7 +37,22 @@ export default function Eventos() {
         ? await supabase.from('vw_evento_precio_total').select('evento_id, precio_total_actual').in('evento_id', ids)
         : { data: [] }
       const precioPorId = Object.fromEntries((precios || []).map((p) => [p.evento_id, p.precio_total_actual]))
-      setEventos(data.map((e) => ({ ...e, precio_total_actual: precioPorId[e.id] ?? e.precio_original })))
+
+      // Respaldo: eventos sin precio_original cargado (viejos, de antes
+      // de que empezáramos a guardarlo) van a buscarlo directo a la
+      // cotización aceptada — así no dependen de que alguien haya
+      // entrado a esa ficha puntual para que se complete solo.
+      const idsCotizacionSinPrecio = data
+        .filter((e) => precioPorId[e.id] == null && e.cotizacion_id)
+        .map((e) => e.cotizacion_id)
+      const { data: cotizacionesRespaldo } = idsCotizacionSinPrecio.length
+        ? await supabase.from('cotizaciones').select('id, precio_final').in('id', idsCotizacionSinPrecio)
+        : { data: [] }
+      const precioCotizacionPorId = Object.fromEntries((cotizacionesRespaldo || []).map((c) => [c.id, c.precio_final]))
+      setEventos(data.map((e) => ({
+        ...e,
+        precio_total_actual: precioPorId[e.id] ?? e.precio_original ?? (e.cotizacion_id ? precioCotizacionPorId[e.cotizacion_id] : null),
+      })))
     }
     setLoading(false)
   }
