@@ -53,6 +53,9 @@ export default function Cotizaciones() {
           fecha: cotizacion.fecha_evento,
           hora_inicio: cotizacion.hora_inicio,
           lugar: cotizacion.lugar,
+          lugar_lat: cotizacion.lugar_lat,
+          lugar_lng: cotizacion.lugar_lng,
+          distancia_km: cotizacion.distancia_km,
           cantidad_personas: cotizacion.cantidad_pax,
           forma_pago: cotizacion.forma_pago,
           precio_original: cotizacion.precio_final ?? null,
@@ -68,20 +71,51 @@ export default function Cotizaciones() {
 
       const { data: diasCot } = await supabase
         .from('cotizacion_dias')
-        .select('fecha, hora_inicio, hora_fin, orden')
+        .select('id, fecha, hora_inicio, hora_fin, orden, cantidad_baristas, tipo_barra')
         .eq('cotizacion_id', cotizacion.id)
         .order('orden')
 
       if (diasCot && diasCot.length) {
-        await supabase.from('evento_dias').insert(
+        const { data: diasEventoInsertados } = await supabase.from('evento_dias').insert(
           diasCot.map((d) => ({
             evento_id: nuevoEvento.id,
             fecha: d.fecha,
             hora_inicio: d.hora_inicio,
             hora_fin: d.hora_fin,
             orden: d.orden,
+            cantidad_baristas: d.cantidad_baristas,
+            tipo_barra: d.tipo_barra,
           }))
-        )
+        ).select('id')
+
+        // También copia el equipo extra cargado por día (Facu, Peipe,
+        // mobiliario) — sin esto, el evento confirmado no "reserva" nada
+        // en equipo_reservas y el sistema de conflictos nunca se entera
+        // de que ese equipo ya está comprometido en un evento real.
+        if (diasEventoInsertados) {
+          const { data: reservasCot } = await supabase
+            .from('equipo_reservas')
+            .select('*')
+            .in('cotizacion_dia_id', diasCot.map((d) => d.id))
+
+          if (reservasCot && reservasCot.length) {
+            const idEventoDiaPorCotizacionDiaId = Object.fromEntries(
+              diasCot.map((d, i) => [d.id, diasEventoInsertados[i]?.id])
+            )
+            const reservasEvento = reservasCot
+              .filter((r) => idEventoDiaPorCotizacionDiaId[r.cotizacion_dia_id])
+              .map((r) => ({
+                equipo_catalogo_id: r.equipo_catalogo_id,
+                fecha: r.fecha,
+                cantidad: r.cantidad,
+                evento_dia_id: idEventoDiaPorCotizacionDiaId[r.cotizacion_dia_id],
+                costo_dia: r.costo_dia,
+              }))
+            if (reservasEvento.length) {
+              await supabase.from('equipo_reservas').insert(reservasEvento)
+            }
+          }
+        }
       }
 
       await supabase

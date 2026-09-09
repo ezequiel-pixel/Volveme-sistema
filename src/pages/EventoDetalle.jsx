@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
+import { LugarConMapa } from '../components/LugarConMapa'
 import { armarLinkWhatsapp } from '../lib/generarPdf'
-import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList, ListChecks, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList, ListChecks, Pencil, Trash2, ClipboardCopy } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -120,6 +121,118 @@ export default function EventoDetalle() {
   const [ajustes, setAjustes] = useState([])
   const [configCalculo, setConfigCalculo] = useState(null)
   const [amortizacionesCalculo, setAmortizacionesCalculo] = useState(null)
+  const [resumenTexto, setResumenTexto] = useState(null)
+  const [generandoResumen, setGenerandoResumen] = useState(false)
+
+  const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+  function formatFechaLarga(fechaStr) {
+    const d = new Date(fechaStr + 'T00:00:00')
+    return `${DIAS_SEMANA[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
+  }
+
+  /** Arma el mensaje de resumen completo del evento — pensado para
+   * mandar tal cual por WhatsApp (a baristas, al cliente, a quien sea).
+   * Junta TODO: cronograma día por día con baristas y equipo asignado,
+   * staff confirmado, nivel de servicio, forma de pago, precio. Se
+   * genera al toque (no queda guardado en ningún lado, siempre sale
+   * con los datos más frescos). */
+  async function generarResumen() {
+    setGenerandoResumen(true)
+
+    const { data: equiposCatalogo } = await supabase.from('equipos_catalogo').select('*, proveedores(nombre_fantasia)')
+    const diaIds = dias.map((d) => d.id)
+    const { data: reservas } = diaIds.length
+      ? await supabase.from('equipo_reservas').select('*').in('evento_dia_id', diaIds)
+      : { data: [] }
+
+    const nombreEquipo = (equipoCatalogoId) => {
+      const eq = (equiposCatalogo || []).find((e) => e.id === equipoCatalogoId)
+      if (!eq) return 'Equipo'
+      return eq.proveedores?.nombre_fantasia ? `${eq.nombre} (${eq.proveedores.nombre_fantasia})` : eq.nombre
+    }
+
+    const linea = (icono, texto) => `${icono} ${texto}\n`
+
+    let texto = `☕ *VOLVEME — RESUMEN DE EVENTO*\n`
+    texto += `━━━━━━━━━━━━━━━━━━━━\n`
+    texto += `*${evento.nombre}*\n\n`
+
+    texto += `*DATOS GENERALES*\n`
+    texto += linea('👤', `Cliente: ${evento.clientes?.nombre || '—'}`)
+    if (evento.clientes?.telefono) texto += linea('📞', `Tel. cliente: ${evento.clientes.telefono}`)
+    texto += linea('📍', `Lugar: ${evento.lugar || '—'}`)
+    if (evento.distancia_km != null) texto += linea('🚗', `Distancia: ~${evento.distancia_km} km desde La Lucila`)
+    texto += linea('👥', `Invitados: ${evento.cantidad_personas || '—'} pax`)
+    texto += linea('💳', `Forma de pago: ${evento.forma_pago || '—'}`)
+
+    if (cotizacion) {
+      texto += `\n*SERVICIO*\n`
+      texto += linea('☕', `Nivel: ${nivelDesdeDb(cotizacion.nivel)}`)
+      texto += linea('🥤', `Vaso: ${cotizacion.tamano_vaso || '—'}`)
+      if (cotizacion.cantidad_cafes_override) texto += linea('🔢', `Cantidad de cafés: ${cotizacion.cantidad_cafes_override}`)
+      texto += linea('🎨', `Arte latte con logo: ${cotizacion.logo_3d ? 'SÍ' : 'no'}`)
+      texto += linea('🏷️', `Calcos en vasos: ${cotizacion.calcos ? 'SÍ' : 'no'}`)
+      if (cotizacion.sin_insumos) texto += linea('⚠️', `SIN INSUMOS — el cliente pone café, leche y vasos. Volveme solo pone equipo, staff y logística.`)
+
+      texto += `\n*SEGUROS Y COBERTURA*\n`
+      texto += linea(cotizacion.art ? '✅' : '❌', `ART: ${cotizacion.art ? `SÍ${cotizacion.art_monto ? ` — ${money(cotizacion.art_monto)}` : ''}` : 'no'}`)
+      if (cotizacion.clausula_rc_monto > 0) texto += linea('✅', `Cláusula RC: ${money(cotizacion.clausula_rc_monto)}`)
+
+      const equipoExtraViejo = []
+      if (cotizacion.cantidad_maquina_1grupo_extra > 0) equipoExtraViejo.push(`${cotizacion.cantidad_maquina_1grupo_extra}x Máquina 1 grupo extra`)
+      if (cotizacion.cantidad_maquina_2grupos_extra > 0) equipoExtraViejo.push(`${cotizacion.cantidad_maquina_2grupos_extra}x Máquina 2 grupos extra`)
+      if (cotizacion.cantidad_molino_extra > 0) equipoExtraViejo.push(`${cotizacion.cantidad_molino_extra}x Molino extra`)
+      if (equipoExtraViejo.length > 0) {
+        texto += `\n*EQUIPO EXTRA (general)*\n`
+        for (const e of equipoExtraViejo) texto += linea('➕', e)
+      }
+
+      if (Number(cotizacion.costo_flete) > 0) texto += `\n${linea('🚚', `Flete: ${money(cotizacion.costo_flete)}`)}`
+    }
+
+    if (evento.precio_original != null) {
+      const totalActual = (evento.precio_original || 0) + ajustes.reduce((s, a) => s + Number(a.delta_precio), 0)
+      texto += `\n*PRECIO*\n`
+      texto += linea('💰', `Total: ${money(totalActual)} (sin IVA)`)
+      if (ajustes.length > 0) texto += linea('📝', `Incluye ${ajustes.length} ajuste${ajustes.length > 1 ? 's' : ''} post-confirmación`)
+    }
+
+    texto += `\n━━━━━━━━━━━━━━━━━━━━\n`
+    texto += `*CRONOGRAMA*\n`
+    const diasOrdenados = [...dias].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+    for (const d of diasOrdenados) {
+      texto += `\n📅 *${formatFechaLarga(d.fecha)}*`
+      if (d.hora_inicio && d.hora_fin) texto += ` — ⏰ ${d.hora_inicio.slice(0, 5)} a ${d.hora_fin.slice(0, 5)}hs`
+      else if (d.duracion_horas) texto += ` — ⏰ ${d.duracion_horas}hs`
+      texto += `\n`
+      if (d.cantidad_baristas) texto += linea('🧑‍🍳', `${d.cantidad_baristas} barista${d.cantidad_baristas > 1 ? 's' : ''}`)
+      if (d.tipo_barra) texto += linea('🔧', d.tipo_barra)
+      const reservasDia = (reservas || []).filter((r) => r.evento_dia_id === d.id)
+      for (const r of reservasDia) {
+        texto += linea('➕', `${nombreEquipo(r.equipo_catalogo_id)}${r.cantidad > 1 ? ` x${r.cantidad}` : ''}`)
+      }
+    }
+
+    const confirmados = asignaciones.filter((a) => a.estado !== 'rechazado')
+    if (confirmados.length > 0) {
+      texto += `\n*STAFF ASIGNADO*\n`
+      for (const a of confirmados) {
+        const estadoIcono = a.estado === 'confirmado' ? '✅' : '⏳'
+        texto += linea(estadoIcono, `${a.staff?.nombre || '—'}${a.staff?.telefono ? ` — ${a.staff.telefono}` : ''}`)
+      }
+    }
+
+    texto += `\n━━━━━━━━━━━━━━━━━━━━\n`
+    texto += `_Probado en barra. Listo para tu evento._ ☕`
+
+    setResumenTexto(texto)
+    setGenerandoResumen(false)
+  }
+
+  function copiarResumen() {
+    navigator.clipboard.writeText(resumenTexto)
+    alert('Copiado — pegalo donde quieras.')
+  }
 
   async function cargarAjustes() {
     const { data } = await supabase.from('evento_ajustes').select('*').eq('evento_id', id).order('creado_en')
@@ -301,14 +414,33 @@ export default function EventoDetalle() {
    * en el evento, sin pasar por ningún cálculo — no afectan precio. */
   async function guardarEdicionRapida() {
     // 1) Datos generales — siempre, tenga o no cotización asociada.
+    const primerDia = [...formEdicionRapida.dias].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))[0]
     const { error: errGenerales } = await supabase.from('eventos').update({
       lugar: formEdicionRapida.lugar || null,
+      lugar_lat: formEdicionRapida.lugar_lat,
+      lugar_lng: formEdicionRapida.lugar_lng,
+      distancia_km: formEdicionRapida.distancia_km,
       cantidad_personas: formEdicionRapida.cantidad_personas === '' ? null : Number(formEdicionRapida.cantidad_personas),
       forma_pago: formEdicionRapida.forma_pago || null,
+      fecha: primerDia?.fecha || null,
+      hora_inicio: primerDia?.horaInicio || null,
     }).eq('id', id)
     if (errGenerales) {
       alert('No se pudieron guardar los datos generales: ' + errGenerales.message)
       return
+    }
+
+    // 1b) Fecha y horario de cada día — no afecta precio, se guarda directo.
+    for (const d of formEdicionRapida.dias) {
+      const { error: errDia } = await supabase.from('evento_dias').update({
+        fecha: d.fecha || null,
+        hora_inicio: d.horaInicio || null,
+        hora_fin: d.horaFin || null,
+      }).eq('id', d.id)
+      if (errDia) {
+        alert(`No se pudo guardar la fecha/horario de un día: ${errDia.message}`)
+        return
+      }
     }
 
     // 2) Configuración del servicio — solo si el evento viene de una
@@ -391,12 +523,28 @@ export default function EventoDetalle() {
           <span className={`text-xs px-2.5 py-1 rounded-full ${estadoStyles[evento.estado]}`}>{evento.estado}</span>
         </div>
         <div className="flex flex-wrap gap-2 flex-shrink-0">
+          <button
+            onClick={generarResumen}
+            disabled={generandoResumen}
+            className="flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
+          >
+            <ClipboardCopy size={15} /> {generandoResumen ? 'Armando…' : 'Resumen'}
+          </button>
           {!formEdicionRapida && (
             <button
               onClick={() => setFormEdicionRapida({
                 lugar: evento.lugar || '',
+                lugar_lat: evento.lugar_lat || null,
+                lugar_lng: evento.lugar_lng || null,
+                distancia_km: evento.distancia_km || null,
                 cantidad_personas: evento.cantidad_personas ?? '',
                 forma_pago: evento.forma_pago || '',
+                dias: [...dias].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)).map((d) => ({
+                  id: d.id,
+                  fecha: d.fecha || '',
+                  horaInicio: d.hora_inicio ? d.hora_inicio.slice(0, 5) : '',
+                  horaFin: d.hora_fin ? d.hora_fin.slice(0, 5) : '',
+                })),
                 ...(cotizacion ? {
                   calcos: cotizacion.calcos || false,
                   cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
@@ -453,11 +601,12 @@ export default function EventoDetalle() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div className="sm:col-span-2">
               <label className="block text-xs text-ink-mid mb-1">Dirección / lugar</label>
-              <input
-                className="input"
+              <LugarConMapa
                 value={formEdicionRapida.lugar}
-                onChange={(e) => setFormEdicionRapida((f) => ({ ...f, lugar: e.target.value }))}
-                placeholder="Ej: Ciudadela, La Rural…"
+                lat={formEdicionRapida.lugar_lat}
+                lng={formEdicionRapida.lugar_lng}
+                distKm={formEdicionRapida.distancia_km}
+                onChange={(cambios) => setFormEdicionRapida((f) => ({ ...f, ...cambios }))}
               />
             </div>
             <div>
@@ -477,6 +626,41 @@ export default function EventoDetalle() {
                 placeholder="Transferencia, efectivo, MP…"
               />
             </div>
+          </div>
+
+          <p className="text-xs uppercase tracking-wide text-ink-light mb-2 pt-3 border-t border-rule">
+            Fecha{formEdicionRapida.dias.length > 1 ? 's' : ''} y horario{formEdicionRapida.dias.length > 1 ? 's' : ''}
+          </p>
+          <div className="space-y-2 mb-4">
+            {formEdicionRapida.dias.map((d, i) => (
+              <div key={d.id} className="grid grid-cols-3 gap-2">
+                <div>
+                  {formEdicionRapida.dias.length > 1 && <label className="block text-[11px] text-ink-light mb-1">Día {i + 1}</label>}
+                  <input
+                    type="date" className="input"
+                    value={d.fecha}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, dias: f.dias.map((dd, j) => j === i ? { ...dd, fecha: e.target.value } : dd) }))}
+                  />
+                </div>
+                <div>
+                  {formEdicionRapida.dias.length > 1 && <label className="block text-[11px] text-ink-light mb-1">Desde</label>}
+                  <input
+                    type="time" className="input"
+                    value={d.horaInicio}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, dias: f.dias.map((dd, j) => j === i ? { ...dd, horaInicio: e.target.value } : dd) }))}
+                  />
+                </div>
+                <div>
+                  {formEdicionRapida.dias.length > 1 && <label className="block text-[11px] text-ink-light mb-1">Hasta</label>}
+                  <input
+                    type="time" className="input"
+                    value={d.horaFin}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, dias: f.dias.map((dd, j) => j === i ? { ...dd, horaFin: e.target.value } : dd) }))}
+                  />
+                </div>
+              </div>
+            ))}
+            <p className="text-[11px] text-ink-light">Cambiar fecha u horario no recalcula el precio — si el cambio de horario suma o saca horas de trabajo real, ajustalo también en "Configuración del servicio" de abajo.</p>
           </div>
 
           {cotizacion && (
@@ -867,6 +1051,31 @@ export default function EventoDetalle() {
           </div>
         )}
       </div>
+
+      {resumenTexto && (
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-4 z-50" onClick={() => setResumenTexto(null)}>
+          <div className="bg-paper-card border border-rule rounded-lg p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-xl">Resumen del evento</h2>
+              <button onClick={() => setResumenTexto(null)} className="text-ink-light hover:text-ink"><X size={18} /></button>
+            </div>
+            <pre className="whitespace-pre-wrap text-sm text-ink bg-paper border border-rule rounded-lg p-4 mb-4 font-sans">{resumenTexto}</pre>
+            <div className="flex gap-2">
+              <button onClick={copiarResumen} className="flex-1 flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors">
+                <ClipboardCopy size={15} /> Copiar
+              </button>
+              <a
+                href={armarLinkWhatsapp(null, resumenTexto)}
+                target="_blank" rel="noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors"
+              >
+                <MessageCircle size={15} /> WhatsApp
+              </a>
+            </div>
+            <p className="text-[11px] text-ink-light mt-2">"WhatsApp" abre el selector de contactos — elegís vos a quién mandárselo (baristas, cliente, quien sea).</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
