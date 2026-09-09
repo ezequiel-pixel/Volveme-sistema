@@ -3,8 +3,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
 import { LugarConMapa } from '../components/LugarConMapa'
-import { armarLinkWhatsapp } from '../lib/generarPdf'
-import { ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X, ClipboardList, ListChecks, Pencil, Trash2, ClipboardCopy } from 'lucide-react'
+import { armarLinkWhatsapp, generarResumenPdfBlob, descargarBlob } from '../lib/generarPdf'
+import {
+  ArrowLeft, Calendar, MapPin, Users, Coffee, Truck, FileText, UserPlus, MessageCircle, X,
+  ClipboardList, ListChecks, Pencil, Trash2, ClipboardCopy, Phone, CreditCard, ChefHat, Layers,
+  Palette, Shield, Sparkles, Tag, Ban, Download,
+} from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -232,6 +236,12 @@ export default function EventoDetalle() {
   function copiarResumen() {
     navigator.clipboard.writeText(resumenTexto)
     alert('Copiado — pegalo donde quieras.')
+  }
+
+  function descargarResumenPdf() {
+    const blob = generarResumenPdfBlob(resumenTexto, evento.nombre)
+    const nombreArchivo = `resumen-${(evento.nombre || 'evento').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`
+    descargarBlob(blob, nombreArchivo)
   }
 
   async function cargarAjustes() {
@@ -742,8 +752,8 @@ export default function EventoDetalle() {
               <InfoItem icon={Users} label="Cliente" valor={evento.clientes?.nombre || '—'} />
               <InfoItem icon={Users} label="Invitados (Pax)" valor={evento.cantidad_personas || '—'} />
               <InfoItem icon={MapPin} label="Ubicación" valor={evento.lugar || '—'} />
-              <InfoItem icon={Users} label="Teléfono cliente" valor={evento.clientes?.telefono || '—'} />
-              <InfoItem icon={Users} label="Forma de pago" valor={evento.forma_pago || '—'} />
+              <InfoItem icon={Phone} label="Teléfono cliente" valor={evento.clientes?.telefono || '—'} />
+              <InfoItem icon={CreditCard} label="Forma de pago" valor={evento.forma_pago || '—'} />
             </div>
           </div>
 
@@ -840,15 +850,20 @@ export default function EventoDetalle() {
                 <Truck size={13} /> Equipo y logística
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InfoItem label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
-                <InfoItem label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
-                <InfoItem label="Nivel" valor={nivelDesdeDb(cotizacion.nivel)} />
-                <InfoItem label="Calcos" valor={cotizacion.calcos ? 'Sí' : 'No'} />
-                <InfoItem label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
-                <InfoItem label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
-                <InfoItem label="Molino Faemma 500 extra" valor={cotizacion.cantidad_molino_extra > 0 ? `${cotizacion.cantidad_molino_extra}` : 'No'} />
-                <InfoItem label="ART" valor={cotizacion.art ? `Sí — ${money(cotizacion.art_monto)}` : 'No'} />
-                <InfoItem label="Costo de flete" valor={money(cotizacion.costo_flete)} />
+                <InfoItem icon={ChefHat} label="Baristas" valor={`${cotizacion.cantidad_baristas || 1}`} />
+                <InfoItem icon={Layers} label="Tipo de barra" valor={cotizacion.tipo_barra || '—'} />
+                <InfoItem icon={Sparkles} label="Nivel" valor={nivelDesdeDb(cotizacion.nivel)} />
+                <InfoItem icon={Coffee} label="Tamaño de vaso" valor={cotizacion.tamano_vaso || '—'} />
+                <InfoItem icon={Coffee} label="Cantidad de cafés" valor={cotizacion.cantidad_cafes_override || 'Automático (pax × consumo)'} />
+                <InfoItem icon={Tag} label="Calcos" valor={cotizacion.calcos ? 'Sí' : 'No'} />
+                <InfoItem icon={Palette} label="Arte latte con logo" valor={cotizacion.logo_3d ? 'Sí' : 'No'} />
+                <InfoItem icon={Ban} label="Sin insumos" valor={cotizacion.sin_insumos ? 'Sí — cliente pone café/leche/vasos' : 'No'} />
+                <InfoItem icon={Truck} label="Máquina 1 grupo Faemma extra" valor={cotizacion.cantidad_maquina_1grupo_extra > 0 ? `${cotizacion.cantidad_maquina_1grupo_extra}` : 'No'} />
+                <InfoItem icon={Truck} label="Máquina 2 grupos Casadio extra" valor={cotizacion.cantidad_maquina_2grupos_extra > 0 ? `${cotizacion.cantidad_maquina_2grupos_extra}` : 'No'} />
+                <InfoItem icon={Truck} label="Molino Faemma 500 extra" valor={cotizacion.cantidad_molino_extra > 0 ? `${cotizacion.cantidad_molino_extra}` : 'No'} />
+                <InfoItem icon={Shield} label="ART" valor={cotizacion.art ? `Sí — ${money(cotizacion.art_monto)}` : 'No'} />
+                <InfoItem icon={Shield} label="Cláusula RC" valor={cotizacion.clausula_rc_monto > 0 ? money(cotizacion.clausula_rc_monto) : 'No'} />
+                <InfoItem icon={Truck} label="Costo de flete" valor={money(cotizacion.costo_flete)} />
               </div>
             </div>
           )}
@@ -1063,6 +1078,9 @@ export default function EventoDetalle() {
             <div className="flex gap-2">
               <button onClick={copiarResumen} className="flex-1 flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors">
                 <ClipboardCopy size={15} /> Copiar
+              </button>
+              <button onClick={descargarResumenPdf} className="flex-1 flex items-center justify-center gap-1.5 border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors">
+                <Download size={15} /> PDF
               </button>
               <a
                 href={armarLinkWhatsapp(null, resumenTexto)}

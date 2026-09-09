@@ -77,7 +77,78 @@ export async function generarPdfMobileBlob(el) {
   return pdf.output('blob')
 }
 
-/** Sube el PDF a Supabase Storage y devuelve la URL pública */
+/**
+ * PDF simple del resumen de un evento — a diferencia de generarPdfBlob
+ * (que captura pantallazos del presupuesto con fotos), esto escribe
+ * texto plano directo en el PDF. Mucho más liviano, pensado para el
+ * botón "Resumen" de EventoDetalle.jsx. Entiende el mismo formato que
+ * ya usa ese resumen para WhatsApp: *negrita*, líneas ━━━ como
+ * separador, líneas vacías como espaciado. Los emojis no los dibuja
+ * (jsPDF no los soporta con las fuentes básicas) — se sacan solos para
+ * que no queden cuadraditos rotos, el texto de al lado alcanza para
+ * entender igual.
+ */
+export function generarResumenPdfBlob(textoResumen, tituloDocumento) {
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  const margen = 20
+  const anchoUtil = 210 - margen * 2
+  let y = 20
+
+  const sacarEmoji = (s) =>
+    s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').trim()
+
+  const lineas = textoResumen.split('\n')
+  for (const lineaOriginal of lineas) {
+    if (y > 280) { pdf.addPage(); y = 20 }
+
+    if (lineaOriginal.startsWith('━')) {
+      pdf.setDrawColor(180)
+      pdf.line(margen, y, 210 - margen, y)
+      y += 6
+      continue
+    }
+    if (lineaOriginal.trim() === '') { y += 3; continue }
+
+    let texto = sacarEmoji(lineaOriginal)
+    let negrita = false
+    let cursiva = false
+    if (texto.startsWith('*') && texto.endsWith('*') && texto.length > 1) {
+      texto = texto.slice(1, -1)
+      negrita = true
+    } else if (texto.startsWith('_') && texto.endsWith('_') && texto.length > 1) {
+      texto = texto.slice(1, -1)
+      cursiva = true
+    }
+    if (!texto) continue
+
+    pdf.setFont('helvetica', negrita ? 'bold' : cursiva ? 'italic' : 'normal')
+    pdf.setFontSize(negrita ? 12 : 10)
+    pdf.setTextColor(negrita ? 60 : 40)
+
+    const wrapped = pdf.splitTextToSize(texto, anchoUtil)
+    for (const w of wrapped) {
+      if (y > 280) { pdf.addPage(); y = 20 }
+      pdf.text(w, margen, y)
+      y += negrita ? 6.5 : 5.5
+    }
+  }
+
+  return pdf.output('blob')
+}
+
+/** Descarga un blob directo en el navegador, sin pasar por Storage. */
+export function descargarBlob(blob, nombreArchivo) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombreArchivo
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+
 export async function subirPdf(blob, cotizacionId) {
   const path = `cotizacion-${cotizacionId}.pdf`
   const { error } = await supabase.storage
