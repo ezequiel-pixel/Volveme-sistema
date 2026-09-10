@@ -55,22 +55,29 @@ export default function Reportes() {
   const [porCobrar, setPorCobrar] = useState([])
   const [fletePorEvento, setFletePorEvento] = useState([])
   const [amortizacionMesActual, setAmortizacionMesActual] = useState(0)
+  const [amortizacionCargando, setAmortizacionCargando] = useState(true)
 
   useEffect(() => { cargarTodo() }, [])
 
   const [errorCarga, setErrorCarga] = useState(null)
+  const inicioAnioStr = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
+  const hace13MesesStr = (() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - 13)
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
+  })()
 
   async function cargarTodo() {
     setLoading(true)
     setErrorCarga(null)
 
     const resultados = await Promise.all([
-      supabase.from('vw_reportes_facturacion_mensual').select('*').order('mes'),
-      supabase.from('pagos').select('monto, fecha').eq('tipo', 'cobro_cliente'),
-      supabase.from('vw_reportes_gastos_mensual').select('*').order('mes'),
-      supabase.from('vw_reportes_compras_mensual').select('*').order('mes'),
-      supabase.from('vw_reportes_utilidad_mensual').select('*').order('mes'),
-      supabase.from('vw_reportes_por_cobrar').select('*').order('fecha'),
+      supabase.from('vw_reportes_facturacion_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
+      supabase.from('pagos').select('monto, fecha').eq('tipo', 'cobro_cliente').gte('fecha', inicioAnioStr),
+      supabase.from('vw_reportes_gastos_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
+      supabase.from('vw_reportes_compras_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
+      supabase.from('vw_reportes_utilidad_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
+      supabase.from('vw_reportes_por_cobrar').select('*').order('fecha').limit(50),
       supabase.from('vw_reportes_flete_por_evento').select('*').order('fecha', { ascending: false }).limit(20),
     ])
     const [
@@ -101,8 +108,12 @@ export default function Reportes() {
     setPorCobrar(cobrar || [])
     setFletePorEvento(flete || [])
 
-    await calcularAmortizacionReferencia()
+    // No se espera acá — el resto de la pantalla ya tiene todo lo que
+    // necesita para mostrarse. La amortización de referencia se calcula
+    // aparte, en segundo plano, y actualiza ese numerito sola cuando
+    // termina (puede tardar más si hay muchos eventos este mes).
     setLoading(false)
+    calcularAmortizacionReferencia()
   }
 
   /** Amortización del mes actual — SOLO de referencia (para comparar con
@@ -110,6 +121,7 @@ export default function Reportes() {
    * la guarde: se recalcula corriendo el motor de pricing real sobre
    * cada evento confirmado/realizado del mes, y sumando. */
   async function calcularAmortizacionReferencia() {
+    setAmortizacionCargando(true)
     const hoy = new Date()
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10)
     const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10)
@@ -121,21 +133,36 @@ export default function Reportes() {
       .gte('fecha', inicioMes)
       .lte('fecha', finMes)
 
-    if (!eventosDelMes || eventosDelMes.length === 0) { setAmortizacionMesActual(0); return }
+    if (!eventosDelMes || eventosDelMes.length === 0) { setAmortizacionMesActual(0); setAmortizacionCargando(false); return }
 
     const { data: configRows } = await supabase.from('config_pricing').select('*')
     const { data: amortRows } = await supabase.from('amortizacion_tipo_barra').select('*')
     const config = configArrayToObject(configRows || [])
     const amortizaciones = amortizacionesArrayToObject(amortRows || [])
 
+    // En LOTE — 2 consultas en total, sin importar si hay 3 eventos este
+    // mes o 300. Antes era una consulta por evento (aunque en paralelo,
+    // seguía siendo N ida-y-vuelta a la base); ahora se traen todas las
+    // cotizaciones juntas y todos los días juntos, y se arma todo en
+    // memoria del lado del navegador.
+    const cotizacionIds = [...new Set(eventosDelMes.map((ev) => ev.cotizacion_id).filter(Boolean))]
+    if (cotizacionIds.length === 0) { setAmortizacionMesActual(0); setAmortizacionCargando(false); return }
+
+    const [{ data: cotizacionesDelMes }, { data: diasDeEsasCotizaciones }] = await Promise.all([
+      supabase.from('cotizaciones').select('*').in('id', cotizacionIds),
+      supabase.from('cotizacion_dias').select('*').in('cotizacion_id', cotizacionIds).order('orden'),
+    ])
+
+    const diasPorCotizacion = {}
+    for (const d of diasDeEsasCotizaciones || []) {
+      (diasPorCotizacion[d.cotizacion_id] ||= []).push(d)
+    }
+
     let total = 0
-    for (const ev of eventosDelMes) {
-      if (!ev.cotizacion_id) continue
-      const { data: cot } = await supabase.from('cotizaciones').select('*').eq('id', ev.cotizacion_id).single()
-      if (!cot) continue
-      const { data: cotDias } = await supabase.from('cotizacion_dias').select('*').eq('cotizacion_id', cot.id).order('orden')
+    for (const cot of cotizacionesDelMes || []) {
+      const cotDias = diasPorCotizacion[cot.id] || []
       const inputs = {
-        dias: (cotDias || []).map((d) => ({
+        dias: cotDias.map((d) => ({
           fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5),
           cantidadBaristas: d.cantidad_baristas, tipoBarra: d.tipo_barra,
         })),
@@ -149,6 +176,7 @@ export default function Reportes() {
       total += r.amortizacionTotal || 0
     }
     setAmortizacionMesActual(total)
+    setAmortizacionCargando(false)
   }
 
   // ---- KPIs de facturación (hoy / semana / mes / año) desde pagos crudo ----
@@ -273,7 +301,7 @@ export default function Reportes() {
               gastosMesAnteriorVal ? ((totalGastosMesActual - gastosMesAnteriorVal) / gastosMesAnteriorVal) * 100 : null
             } invertirColor />
             <Kpi icon={Truck} label="Logística/flete este mes" valor={money(gastosPorCategoriaMesActual.logistica_flete || 0)} />
-            <Kpi icon={AlertCircle} label="Amortización (referencia, no resta)" valor={money(amortizacionMesActual)} />
+            <Kpi icon={AlertCircle} label="Amortización (referencia, no resta)" valor={amortizacionCargando ? 'Calculando…' : money(amortizacionMesActual)} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -403,7 +431,7 @@ export default function Reportes() {
           </div>
 
           <div className="border border-rule rounded-lg p-4 bg-paper-card mb-6 text-xs text-ink-light">
-            <strong className="text-ink-mid">Desgaste de equipo este mes (referencia): {money(amortizacionMesActual)}.</strong> No
+            <strong className="text-ink-mid">Desgaste de equipo este mes (referencia): {amortizacionCargando ? 'calculando…' : money(amortizacionMesActual)}.</strong> No
             resta de la utilidad de arriba — es plata que ya se pagó una sola vez, el día que se compró cada máquina (eso ya está
             contado en "Compras" ese mes). Este número sirve para chequear que el pricing de las cotizaciones no esté subestimando el
             desgaste real del equipo propio.
