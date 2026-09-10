@@ -20,19 +20,23 @@ export default function Facturacion() {
   const [cobros, setCobros] = useState([])
   const [pagosStaff, setPagosStaff] = useState([])
   const [pagosProveedores, setPagosProveedores] = useState([])
+  const [pagosLogistica, setPagosLogistica] = useState([])
 
   const [formPago, setFormPago] = useState(null)
 
   async function cargarTodo() {
     setLoading(true)
-    await Promise.all([cargarCobros(), cargarPagosStaff(), cargarPagosProveedores()])
+    await Promise.all([cargarCobros(), cargarPagosStaff(), cargarPagosProveedores(), cargarPagosLogistica()])
     setLoading(false)
   }
 
   useEffect(() => { cargarTodo() }, [])
 
   // ---- Cobros a clientes: lo que corresponde (precio_final de la
-  // cotización) contra lo que ya se registró como cobrado. ----
+  // cotización) contra lo que ya se registró como cobrado. Un pago es
+  // "cobro de cliente" cuando tiene evento_id cargado y NINGÚN otro
+  // enlace (ni staff_id, ni proveedor_id, ni compra_id) — eso es lo que
+  // lo distingue de un pago de flete a ese mismo evento, por ejemplo. */
   async function cargarCobros() {
     const { data: eventos } = await supabase
       .from('eventos')
@@ -41,7 +45,9 @@ export default function Facturacion() {
       .not('cotizacion_id', 'is', null)
       .order('fecha', { ascending: false })
 
-    const { data: pagosData } = await supabase.from('pagos').select('*').eq('tipo', 'cobro_cliente')
+    const { data: pagosData } = await supabase
+      .from('pagos').select('*')
+      .not('evento_id', 'is', null).is('staff_id', null).is('proveedor_id', null).is('compra_id', null)
 
     const filas = []
     for (const ev of eventos || []) {
@@ -54,14 +60,15 @@ export default function Facturacion() {
   }
 
   // ---- Pagos a staff: horas reales asignadas × tarifa/hora de cada
-  // persona, contra lo que ya se le pagó. ----
+  // persona, contra lo que ya se le pagó. Un pago "a staff" siempre
+  // tiene staff_id cargado, sin importar qué más tenga. ----
   async function cargarPagosStaff() {
     const { data: asignaciones } = await supabase
       .from('evento_staff')
       .select('*, staff(*), eventos(id, nombre, fecha, estado, clientes(nombre))')
       .in('estado', ['asignado', 'confirmado'])
 
-    const { data: pagosData } = await supabase.from('pagos').select('*').eq('tipo', 'pago_staff')
+    const { data: pagosData } = await supabase.from('pagos').select('*').not('staff_id', 'is', null)
 
     const filas = []
     for (const a of asignaciones || []) {
@@ -87,15 +94,15 @@ export default function Facturacion() {
     setPagosStaff(filas)
   }
 
-  // ---- Pagos a proveedores: lo que salió de cada compra contra lo
-  // ya pagado. ----
+  // ---- Pagos a proveedores de insumos: lo que salió de cada compra
+  // contra lo ya pagado. Siempre tiene compra_id cargado. ----
   async function cargarPagosProveedores() {
     const { data: comprasData } = await supabase
       .from('compras')
       .select('*, insumos(nombre), proveedores(nombre_fantasia, telefono, alias_pago, forma_pago)')
       .in('estado', ['comprado', 'recibido'])
 
-    const { data: pagosData } = await supabase.from('pagos').select('*').eq('tipo', 'pago_proveedor')
+    const { data: pagosData } = await supabase.from('pagos').select('*').not('compra_id', 'is', null)
 
     const filas = (comprasData || []).map((c) => {
       const esperado = (Number(c.cantidad_paquetes) || 0) * (Number(c.precio_unitario_pagado) || 0)
@@ -105,12 +112,44 @@ export default function Facturacion() {
     setPagosProveedores(filas)
   }
 
+  // ---- Logística/flete: lo presupuestado (costo_flete de la
+  // cotización) contra lo ya pagado a proveedores tipo "logistica"
+  // (Alejandro). Tiene evento_id + proveedor_id, sin compra_id ni
+  // staff_id. ----
+  async function cargarPagosLogistica() {
+    const { data: proveedorLogistica } = await supabase
+      .from('proveedores').select('id').eq('tipo_proveedor', 'logistica').limit(1).maybeSingle()
+    const proveedorLogisticaId = proveedorLogistica?.id || null
+
+    const { data: eventos } = await supabase
+      .from('eventos')
+      .select('*, clientes(nombre), cotizaciones(costo_flete)')
+      .in('estado', ['confirmado', 'realizado'])
+      .not('cotizacion_id', 'is', null)
+      .order('fecha', { ascending: false })
+
+    const { data: pagosData } = await supabase
+      .from('pagos').select('*')
+      .not('proveedor_id', 'is', null).is('compra_id', null).is('staff_id', null)
+
+    const filas = []
+    for (const ev of eventos || []) {
+      const esperado = Number(ev.cotizaciones?.costo_flete) || 0
+      if (esperado <= 0) continue // sin flete cotizado, no aparece en esta pestaña
+      const pagado = (pagosData || []).filter((p) => p.evento_id === ev.id).reduce((s, p) => s + Number(p.monto), 0)
+      filas.push({ evento: ev, esperado, pagado, pendiente: esperado - pagado, proveedorLogisticaId })
+    }
+    setPagosLogistica(filas)
+  }
+
+
   async function registrarPago() {
     await supabase.from('pagos').insert({
-      tipo: formPago.tipo,
+      tipo: formPago.tipo || 'total',
       evento_id: formPago.evento_id || null,
       staff_id: formPago.staff_id || null,
       compra_id: formPago.compra_id || null,
+      proveedor_id: formPago.proveedor_id || null,
       descripcion: formPago.descripcion || null,
       monto: Number(formPago.monto) || 0,
       fecha: formPago.fecha,
@@ -124,6 +163,7 @@ export default function Facturacion() {
   const totalPorCobrar = cobros.reduce((s, f) => s + Math.max(0, f.pendiente), 0)
   const totalPorPagarStaff = pagosStaff.reduce((s, f) => s + Math.max(0, f.pendiente), 0)
   const totalPorPagarProveedores = pagosProveedores.reduce((s, f) => s + Math.max(0, f.pendiente), 0)
+  const totalPorPagarLogistica = pagosLogistica.reduce((s, f) => s + Math.max(0, f.pendiente), 0)
 
   return (
     <div>
@@ -132,8 +172,8 @@ export default function Facturacion() {
         <h1 className="font-display text-2xl">Facturación y pagos</h1>
       </div>
 
-      {/* Resumen — 3 números clave, siempre visibles */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      {/* Resumen — 4 números clave, siempre visibles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div className="bg-peach rounded-lg p-4">
           <p className="text-[11px] uppercase tracking-wide text-ink-mid mb-1">Por cobrar</p>
           <p className="font-display text-xl sm:text-2xl text-wine">{money(totalPorCobrar)}</p>
@@ -146,6 +186,10 @@ export default function Facturacion() {
           <p className="text-[11px] uppercase tracking-wide text-ink-mid mb-1">Por pagar — proveedores</p>
           <p className="font-display text-xl sm:text-2xl text-wine">{money(totalPorPagarProveedores)}</p>
         </div>
+        <div className="bg-peach rounded-lg p-4">
+          <p className="text-[11px] uppercase tracking-wide text-ink-mid mb-1">Por pagar — logística</p>
+          <p className="font-display text-xl sm:text-2xl text-wine">{money(totalPorPagarLogistica)}</p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -154,6 +198,7 @@ export default function Facturacion() {
           ['cobros', 'Cobros a clientes'],
           ['staff', 'Pagos a staff'],
           ['proveedores', 'Pagos a proveedores'],
+          ['logistica', 'Logística / Flete'],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -171,23 +216,33 @@ export default function Facturacion() {
 
       {!loading && tab === 'cobros' && (
         <TablaCobros filas={cobros} onRegistrar={(f) => setFormPago({
-          tipo: 'cobro_cliente', evento_id: f.evento.id, descripcion: f.evento.clientes?.nombre || f.evento.nombre,
-          monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: '', notas: '',
+          evento_id: f.evento.id, staff_id: null, compra_id: null, proveedor_id: null,
+          tipo: 'total', descripcion: f.evento.clientes?.nombre || f.evento.nombre,
+          monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: 'transferencia', notas: '',
         })} />
       )}
 
       {!loading && tab === 'staff' && (
         <TablaStaff filas={pagosStaff} onRegistrar={(f) => setFormPago({
-          tipo: 'pago_staff', evento_id: f.asignacion.evento_id, staff_id: f.asignacion.staff_id,
-          descripcion: `${f.asignacion.staff?.nombre} — ${f.asignacion.eventos?.nombre}`,
-          monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: 'Mercado Pago', notas: '',
+          evento_id: f.asignacion.evento_id, staff_id: f.asignacion.staff_id, compra_id: null, proveedor_id: null,
+          tipo: 'total', descripcion: `${f.asignacion.staff?.nombre} — ${f.asignacion.eventos?.nombre}`,
+          monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: 'mercadopago', notas: '',
         })} />
       )}
 
       {!loading && tab === 'proveedores' && (
         <TablaProveedores filas={pagosProveedores} onRegistrar={(f) => setFormPago({
-          tipo: 'pago_proveedor', compra_id: f.compra.id, descripcion: `${f.compra.proveedores?.nombre_fantasia || ''} — ${f.compra.insumos?.nombre || ''}`,
-          monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: '', notas: '',
+          compra_id: f.compra.id, evento_id: null, staff_id: null, proveedor_id: f.compra.proveedor_id || null,
+          tipo: 'total', descripcion: `${f.compra.proveedores?.nombre_fantasia || ''} — ${f.compra.insumos?.nombre || ''}`,
+          monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: 'transferencia', notas: '',
+        })} />
+      )}
+
+      {!loading && tab === 'logistica' && (
+        <TablaLogistica filas={pagosLogistica} onRegistrar={(f) => setFormPago({
+          evento_id: f.evento.id, staff_id: null, compra_id: null, proveedor_id: f.proveedorLogisticaId || null,
+          tipo: 'total', descripcion: `Flete — ${f.evento.clientes?.nombre || f.evento.nombre}`,
+          monto: '', fecha: new Date().toISOString().slice(0, 10), medio_pago: 'transferencia', notas: '',
         })} />
       )}
 
@@ -351,6 +406,50 @@ function TablaProveedores({ filas, onRegistrar }) {
   )
 }
 
+function TablaLogistica({ filas, onRegistrar }) {
+  if (filas.length === 0) return <p className="text-sm text-ink-light py-10 text-center border border-rule rounded-lg">No hay eventos confirmados con flete cotizado todavía.</p>
+  return (
+    <div className="border border-rule rounded-lg overflow-hidden bg-paper-card">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-rule text-left text-[11px] uppercase tracking-wide text-ink-light">
+            <th className="px-4 py-2.5 font-medium">Evento</th>
+            <th className="px-4 py-2.5 font-medium">Fecha</th>
+            <th className="px-4 py-2.5 font-medium text-right">Presupuestado</th>
+            <th className="px-4 py-2.5 font-medium text-right">Pagado</th>
+            <th className="px-4 py-2.5 font-medium text-right">Pendiente</th>
+            <th className="px-4 py-2.5 font-medium"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr key={f.evento.id} className="border-b border-rule last:border-0 hover:bg-paper/60">
+              <td className="px-4 py-3">
+                <p className="font-medium text-ink">{f.evento.clientes?.nombre || f.evento.nombre}</p>
+                <EstadoPago pendiente={f.pendiente} />
+              </td>
+              <td className="px-4 py-3 text-ink-mid">{new Date(f.evento.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+              <td className="px-4 py-3 text-right text-ink-mid">{money(f.esperado)}</td>
+              <td className="px-4 py-3 text-right text-ink-mid">{money(f.pagado)}</td>
+              <td className="px-4 py-3 text-right font-medium text-ink">{money(Math.max(0, f.pendiente))}</td>
+              <td className="px-4 py-3 text-right">
+                {f.pendiente > 0 && f.proveedorLogisticaId && (
+                  <button onClick={() => onRegistrar(f)} className="flex items-center gap-1 text-xs text-wine hover:underline ml-auto">
+                    <Plus size={13} /> Pagar
+                  </button>
+                )}
+                {f.pendiente > 0 && !f.proveedorLogisticaId && (
+                  <span className="text-[11px] text-coral">Sin proveedor de logística cargado</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function FormPago({ form, setForm, onGuardar, onCerrar }) {
   function set(campo, valor) {
     setForm((f) => ({ ...f, [campo]: valor }))
@@ -375,8 +474,23 @@ function FormPago({ form, setForm, onGuardar, onCerrar }) {
             </div>
             <div>
               <label className="block text-xs text-ink-mid mb-1">Medio de pago</label>
-              <input className="input" placeholder="Transferencia, MP…" value={form.medio_pago} onChange={(e) => set('medio_pago', e.target.value)} />
+              <select className="input" value={form.medio_pago} onChange={(e) => set('medio_pago', e.target.value)}>
+                <option value="transferencia">Transferencia</option>
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="mercadopago">Mercado Pago</option>
+                <option value="otro">Otro</option>
+              </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-xs text-ink-mid mb-1">Etapa del pago</label>
+            <select className="input" value={form.tipo} onChange={(e) => set('tipo', e.target.value)}>
+              <option value="total">Total (pago único, completo)</option>
+              <option value="seña">Seña</option>
+              <option value="parcial">Parcial</option>
+              <option value="saldo_final">Saldo final</option>
+            </select>
           </div>
           <div>
             <label className="block text-xs text-ink-mid mb-1">Notas</label>

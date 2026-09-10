@@ -18,8 +18,16 @@ const moneyCorto = (n) => {
 }
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+// pagos.fecha (y otras columnas de fecha) a veces vienen como
+// "YYYY-MM-DD" y a veces como timestamp completo "YYYY-MM-DDTHH:mm:ss" —
+// pegarle "T00:00:00" a algo que ya tenía hora arma una fecha inválida
+// (el bug que hacía que Facturación diera todo en $0). Esto normaliza
+// los dos casos por igual, siempre agarrando solo la parte de fecha.
+const parseFecha = (fechaStr) => new Date((fechaStr || '').slice(0, 10) + 'T00:00:00')
+
 const formatMes = (fechaStr) => {
-  const d = new Date(fechaStr + 'T00:00:00')
+  const d = parseFecha(fechaStr)
   return `${MESES[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`
 }
 
@@ -73,7 +81,9 @@ export default function Reportes() {
 
     const resultados = await Promise.all([
       supabase.from('vw_reportes_facturacion_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
-      supabase.from('pagos').select('monto, fecha').eq('tipo', 'cobro_cliente').gte('fecha', inicioAnioStr),
+      supabase.from('pagos').select('monto, fecha')
+        .not('evento_id', 'is', null).is('staff_id', null).is('proveedor_id', null).is('compra_id', null)
+        .gte('fecha', inicioAnioStr),
       supabase.from('vw_reportes_gastos_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
       supabase.from('vw_reportes_compras_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
       supabase.from('vw_reportes_utilidad_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
@@ -187,7 +197,7 @@ export default function Reportes() {
   const inicioAnio = new Date(hoy.getFullYear(), 0, 1)
 
   const sumaDesde = (fechaInicio) =>
-    pagosCobros.filter((p) => new Date(p.fecha + 'T00:00:00') >= fechaInicio).reduce((s, p) => s + Number(p.monto), 0)
+    pagosCobros.filter((p) => parseFecha(p.fecha) >= fechaInicio).reduce((s, p) => s + Number(p.monto), 0)
 
   const kpiHoy = sumaDesde(inicioHoy)
   const kpiSemana = sumaDesde(inicioSemana)
@@ -354,7 +364,7 @@ export default function Reportes() {
                   {fletePorEvento.map((f) => (
                     <tr key={f.evento_id} className="border-b border-rule last:border-0">
                       <td className="px-4 py-2.5 text-ink">{f.nombre}</td>
-                      <td className="px-4 py-2.5 text-ink-mid">{new Date(f.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                      <td className="px-4 py-2.5 text-ink-mid">{parseFecha(f.fecha).toLocaleDateString('es-AR')}</td>
                       <td className="px-4 py-2.5 text-right text-ink-mid">{money(f.flete_presupuestado)}</td>
                       <td className="px-4 py-2.5 text-right text-ink-mid">{money(f.flete_pagado_real)}</td>
                       <td className={`px-4 py-2.5 text-right font-medium ${f.diferencia > 0 ? 'text-coral' : f.diferencia < 0 ? 'text-teal' : 'text-ink-light'}`}>
@@ -458,7 +468,7 @@ export default function Reportes() {
                     <tr key={p.evento_id} className="border-b border-rule last:border-0">
                       <td className="px-4 py-2.5 text-ink">{p.nombre}</td>
                       <td className="px-4 py-2.5 text-ink-mid">{p.cliente || '—'}</td>
-                      <td className="px-4 py-2.5 text-ink-mid">{new Date(p.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                      <td className="px-4 py-2.5 text-ink-mid">{parseFecha(p.fecha).toLocaleDateString('es-AR')}</td>
                       <td className="px-4 py-2.5 text-right text-ink-mid">{money(p.devengado)}</td>
                       <td className="px-4 py-2.5 text-right text-ink-mid">{money(p.percibido)}</td>
                       <td className="px-4 py-2.5 text-right font-medium text-coral">{money(p.pendiente)}</td>
