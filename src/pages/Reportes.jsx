@@ -58,18 +58,13 @@ export default function Reportes() {
 
   useEffect(() => { cargarTodo() }, [])
 
+  const [errorCarga, setErrorCarga] = useState(null)
+
   async function cargarTodo() {
     setLoading(true)
+    setErrorCarga(null)
 
-    const [
-      { data: facturacion },
-      { data: cobros },
-      { data: gastos },
-      { data: compras },
-      { data: utilidad },
-      { data: cobrar },
-      { data: flete },
-    ] = await Promise.all([
+    const resultados = await Promise.all([
       supabase.from('vw_reportes_facturacion_mensual').select('*').order('mes'),
       supabase.from('pagos').select('monto, fecha').eq('tipo', 'cobro_cliente'),
       supabase.from('vw_reportes_gastos_mensual').select('*').order('mes'),
@@ -78,6 +73,25 @@ export default function Reportes() {
       supabase.from('vw_reportes_por_cobrar').select('*').order('fecha'),
       supabase.from('vw_reportes_flete_por_evento').select('*').order('fecha', { ascending: false }).limit(20),
     ])
+    const [
+      { data: facturacion, error: e1 },
+      { data: cobros, error: e2 },
+      { data: gastos, error: e3 },
+      { data: compras, error: e4 },
+      { data: utilidad, error: e5 },
+      { data: cobrar, error: e6 },
+      { data: flete, error: e7 },
+    ] = resultados
+
+    // Si alguna vista todavía no existe (no se corrió el SQL de
+    // Reportes) u otro error de la base, se avisa clarito en vez de
+    // mostrar todo en cero en silencio como pasaba antes.
+    const primerError = [e1, e2, e3, e4, e5, e6, e7].find((e) => e)
+    if (primerError) {
+      setErrorCarga(primerError.message)
+      setLoading(false)
+      return
+    }
 
     setFacturacionMensual(facturacion || [])
     setPagosCobros(cobros || [])
@@ -187,6 +201,21 @@ export default function Reportes() {
   const filaComprasMesActual = comprasMensual.find((c) => c.mes === mesActualStr)
 
   if (loading) return <p className="text-sm text-ink-light py-12 text-center">Cargando reportes…</p>
+
+  if (errorCarga) {
+    return (
+      <div className="border border-coral rounded-lg p-5 bg-coral-light max-w-xl">
+        <p className="text-sm font-medium text-coral mb-2">No se pudieron cargar los reportes</p>
+        <p className="text-xs text-ink-mid mb-3">
+          Esto casi siempre significa que el SQL de Reportes (<code>2026_09_reportes.sql</code>) todavía no se corrió en Supabase — las vistas que necesita esta pantalla no existen todavía.
+        </p>
+        <p className="text-xs font-mono bg-paper border border-rule rounded p-2 mb-3 overflow-x-auto">{errorCarga}</p>
+        <button onClick={cargarTodo} className="text-xs bg-wine text-paper rounded px-3 py-1.5 hover:bg-wine-mid transition-colors">
+          Reintentar
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div>
