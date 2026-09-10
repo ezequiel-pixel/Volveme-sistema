@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import {
   LogOut, Menu, X,
   LayoutDashboard, FileText, CalendarDays, Coffee, Users, PackageSearch, Building2, Wrench,
-  ShoppingCart, Receipt,
+  ShoppingCart, Receipt, Sliders, BarChart3,
 } from 'lucide-react'
 
 const navItems = [
@@ -18,6 +18,8 @@ const navItems = [
   { to: '/proveedores', label: 'Proveedores', icon: Building2 },
   { to: '/compras', label: 'Compras', icon: ShoppingCart },
   { to: '/facturacion', label: 'Facturación', icon: Receipt },
+  { to: '/config', label: 'Config', icon: Sliders },
+  { to: '/reportes', label: 'Reportes', icon: BarChart3 },
 ]
 
 export default function Layout() {

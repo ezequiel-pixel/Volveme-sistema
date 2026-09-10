@@ -16,6 +16,8 @@ import Equipamiento from './pages/Equipamiento'
 import Proveedores from './pages/Proveedores'
 import Compras from './pages/Compras'
 import Facturacion from './pages/Facturacion'
+import Config from './pages/Config'
+import Reportes from './pages/Reportes'
 import Checklist from './pages/Checklist'
 import Layout from './components/Layout'
 import ComingSoon from './components/ComingSoon'
@@ -56,6 +58,8 @@ export default function App() {
         <Route path="/proveedores" element={<Proveedores />} />
         <Route path="/compras" element={<Compras />} />
         <Route path="/facturacion" element={<Facturacion />} />
+        <Route path="/config" element={<Config />} />
+        <Route path="/reportes" element={<Reportes />} />
         <Route path="/productos" element={<ComingSoon title="Productos" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
