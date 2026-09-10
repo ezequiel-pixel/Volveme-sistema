@@ -39,14 +39,32 @@ export async function calcularNecesidadesInsumos() {
   let eventosUrgentes = 0
   const eventosConDetalle = []
 
+  // En LOTE — antes esto hacía 2 consultas a la base POR CADA evento
+  // confirmado a futuro, una por una en fila (con varios eventos
+  // cargados, esto podía tardar varios segundos y sentirse "trabado").
+  // Ahora son siempre 2 consultas en total, sin importar si hay 5
+  // eventos confirmados o 50.
+  const cotizacionIds = [...new Set((eventosProximos || []).map((ev) => ev.cotizacion_id).filter(Boolean))]
+  const [{ data: cotizacionesData }, { data: diasData }] = cotizacionIds.length
+    ? await Promise.all([
+        supabase.from('cotizaciones').select('*').in('id', cotizacionIds),
+        supabase.from('cotizacion_dias').select('*').in('cotizacion_id', cotizacionIds).order('orden'),
+      ])
+    : [{ data: [] }, { data: [] }]
+
+  const cotizacionPorId = Object.fromEntries((cotizacionesData || []).map((c) => [c.id, c]))
+  const diasPorCotizacion = {}
+  for (const d of diasData || []) {
+    (diasPorCotizacion[d.cotizacion_id] ||= []).push(d)
+  }
+
   for (const ev of eventosProximos || []) {
-    const { data: cot } = await supabase.from('cotizaciones').select('*').eq('id', ev.cotizacion_id).single()
+    const cot = cotizacionPorId[ev.cotizacion_id]
     if (!cot) continue
-    const { data: cotDias } = await supabase
-      .from('cotizacion_dias').select('*').eq('cotizacion_id', cot.id).order('orden')
+    const cotDias = diasPorCotizacion[cot.id] || []
 
     const inputsRecalculo = {
-      dias: (cotDias || []).map((d) => ({
+      dias: cotDias.map((d) => ({
         fecha: d.fecha, horaInicio: d.hora_inicio?.slice(0, 5), horaFin: d.hora_fin?.slice(0, 5),
       })),
       cantidad_pax: cot.cantidad_pax || 0,
