@@ -79,10 +79,12 @@ export default function Compras() {
       estado: form.estado,
       notas: form.notas || null,
     }
-    if (form.id) {
-      await supabase.from('compras').update(payload).eq('id', form.id)
-    } else {
-      await supabase.from('compras').insert(payload)
+    const { error } = form.id
+      ? await supabase.from('compras').update(payload).eq('id', form.id)
+      : await supabase.from('compras').insert(payload)
+    if (error) {
+      alert('No se pudo guardar la compra: ' + error.message)
+      return
     }
     setForm(null)
     cargar()
@@ -90,7 +92,8 @@ export default function Compras() {
 
   async function eliminar(compra) {
     if (!confirm('¿Eliminar esta compra? Si ya estaba marcada como recibida, esto NO revierte el stock que sumó — ajustalo a mano en Insumos si hace falta.')) return
-    await supabase.from('compras').delete().eq('id', compra.id)
+    const { error } = await supabase.from('compras').delete().eq('id', compra.id)
+    if (error) { alert('No se pudo eliminar: ' + error.message); return }
     cargar()
   }
 
@@ -100,13 +103,15 @@ export default function Compras() {
    * stock si el botón se aprieta de nuevo por error). */
   async function marcarRecibido(compra) {
     if (compra.estado === 'recibido') return
-    await supabase.from('compras').update({ estado: 'recibido' }).eq('id', compra.id)
+    const { error: errCompra } = await supabase.from('compras').update({ estado: 'recibido' }).eq('id', compra.id)
+    if (errCompra) { alert('No se pudo marcar como recibido: ' + errCompra.message); return }
 
     if (compra.insumo_id) {
       const { data: insumo } = await supabase.from('insumos').select('*').eq('id', compra.insumo_id).single()
       if (insumo) {
         const sumar = (Number(compra.cantidad_paquetes) || 0) * (Number(insumo.cantidad_por_paquete) || 1)
-        await supabase.from('insumos').update({ stock_actual: (Number(insumo.stock_actual) || 0) + sumar }).eq('id', insumo.id)
+        const { error: errStock } = await supabase.from('insumos').update({ stock_actual: (Number(insumo.stock_actual) || 0) + sumar }).eq('id', insumo.id)
+        if (errStock) { alert('Se marcó recibido, pero no se pudo sumar el stock: ' + errStock.message); return }
       }
     }
     cargar()

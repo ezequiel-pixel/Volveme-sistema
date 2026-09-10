@@ -110,10 +110,12 @@ export default function Stock() {
       notas: form.notas || null,
       activo: form.activo,
     }
-    if (form.id) {
-      await supabase.from('insumos').update(payload).eq('id', form.id)
-    } else {
-      await supabase.from('insumos').insert(payload)
+    const { error } = form.id
+      ? await supabase.from('insumos').update(payload).eq('id', form.id)
+      : await supabase.from('insumos').insert(payload)
+    if (error) {
+      alert('No se pudo guardar el insumo: ' + error.message)
+      return
     }
     setForm(null)
     cargar()
@@ -122,12 +124,14 @@ export default function Stock() {
 
   async function eliminar(item) {
     if (!confirm(`¿Eliminar "${item.nombre}"?`)) return
-    await supabase.from('insumos').delete().eq('id', item.id)
+    const { error } = await supabase.from('insumos').delete().eq('id', item.id)
+    if (error) { alert('No se pudo eliminar: ' + error.message); return }
     cargar()
   }
 
   async function toggleActivo(item) {
-    await supabase.from('insumos').update({ activo: !item.activo }).eq('id', item.id)
+    const { error } = await supabase.from('insumos').update({ activo: !item.activo }).eq('id', item.id)
+    if (error) { alert('No se pudo cambiar el estado: ' + error.message); return }
     cargar()
   }
 
@@ -137,7 +141,8 @@ export default function Stock() {
   async function actualizarStockActual(item, nuevoValor) {
     const valor = nuevoValor === '' ? 0 : Number(nuevoValor)
     setInsumos((prev) => prev.map((i) => (i.id === item.id ? { ...i, stock_actual: valor } : i)))
-    await supabase.from('insumos').update({ stock_actual: valor }).eq('id', item.id)
+    const { error } = await supabase.from('insumos').update({ stock_actual: valor }).eq('id', item.id)
+    if (error) { alert('No se pudo guardar el stock actual: ' + error.message); return }
     cargarNecesidades()
   }
 
@@ -151,7 +156,7 @@ export default function Stock() {
     const precio = Number(formReponer.precio_unitario_pagado) || 0
     if (cantidad <= 0) { setFormReponer(null); return }
 
-    await supabase.from('compras').insert({
+    const { error: errCompra } = await supabase.from('compras').insert({
       insumo_id: formReponer.insumo.id,
       proveedor_id: formReponer.insumo.proveedor_id || null,
       cantidad_paquetes: cantidad,
@@ -160,11 +165,19 @@ export default function Stock() {
       estado: 'recibido',
       notas: 'Reposición rápida desde Stock',
     })
+    if (errCompra) {
+      alert('No se pudo registrar la compra: ' + errCompra.message)
+      return
+    }
 
     const sumar = cantidad * (Number(formReponer.insumo.cantidad_por_paquete) || 1)
-    await supabase.from('insumos').update({
+    const { error: errStock } = await supabase.from('insumos').update({
       stock_actual: (Number(formReponer.insumo.stock_actual) || 0) + sumar,
     }).eq('id', formReponer.insumo.id)
+    if (errStock) {
+      alert('La compra se registró, pero no se pudo actualizar el stock: ' + errStock.message)
+      return
+    }
 
     setFormReponer(null)
     cargar()
