@@ -424,17 +424,30 @@ export default function EventoDetalle() {
    * en el evento, sin pasar por ningún cálculo — no afectan precio. */
   async function guardarEdicionRapida() {
     // 1) Datos generales — siempre, tenga o no cotización asociada.
-    const primerDia = [...formEdicionRapida.dias].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))[0]
-    const { error: errGenerales } = await supabase.from('eventos').update({
+    const primerDia = formEdicionRapida.dias.length
+      ? [...formEdicionRapida.dias].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))[0]
+      : null
+    const payloadGenerales = {
       lugar: formEdicionRapida.lugar || null,
       lugar_lat: formEdicionRapida.lugar_lat,
       lugar_lng: formEdicionRapida.lugar_lng,
       distancia_km: formEdicionRapida.distancia_km,
       cantidad_personas: formEdicionRapida.cantidad_personas === '' ? null : Number(formEdicionRapida.cantidad_personas),
       forma_pago: formEdicionRapida.forma_pago || null,
-      fecha: primerDia?.fecha || null,
-      hora_inicio: primerDia?.horaInicio || null,
-    }).eq('id', id)
+    }
+    // Solo toca fecha/hora_inicio del evento si HAY días cargados — si el
+    // evento no tiene ningún evento_dias (ej. cargado por "Excepción
+    // manual" sin fecha), no los pisa con NULL sin querer.
+    if (primerDia) {
+      payloadGenerales.fecha = primerDia.fecha || null
+      payloadGenerales.hora_inicio = primerDia.horaInicio || null
+    } else {
+      // Evento sin cronograma detallado — la fecha/hora se edita directo
+      // sobre el evento, con los campos fechaSinDias/horaSinDias.
+      payloadGenerales.fecha = formEdicionRapida.fechaSinDias || null
+      payloadGenerales.hora_inicio = formEdicionRapida.horaSinDias || null
+    }
+    const { error: errGenerales } = await supabase.from('eventos').update(payloadGenerales).eq('id', id)
     if (errGenerales) {
       alert('No se pudieron guardar los datos generales: ' + errGenerales.message)
       return
@@ -555,6 +568,8 @@ export default function EventoDetalle() {
                   horaInicio: d.hora_inicio ? d.hora_inicio.slice(0, 5) : '',
                   horaFin: d.hora_fin ? d.hora_fin.slice(0, 5) : '',
                 })),
+                fechaSinDias: evento.fecha || '',
+                horaSinDias: evento.hora_inicio ? evento.hora_inicio.slice(0, 5) : '',
                 ...(cotizacion ? {
                   calcos: cotizacion.calcos || false,
                   cantidad_cafes_override: cotizacion.cantidad_cafes_override ?? '',
@@ -642,6 +657,27 @@ export default function EventoDetalle() {
             Fecha{formEdicionRapida.dias.length > 1 ? 's' : ''} y horario{formEdicionRapida.dias.length > 1 ? 's' : ''}
           </p>
           <div className="space-y-2 mb-4">
+            {formEdicionRapida.dias.length === 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] text-ink-light mb-1">Fecha</label>
+                  <input
+                    type="date" className="input"
+                    value={formEdicionRapida.fechaSinDias || ''}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, fechaSinDias: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-ink-light mb-1">Hora</label>
+                  <input
+                    type="time" className="input"
+                    value={formEdicionRapida.horaSinDias || ''}
+                    onChange={(e) => setFormEdicionRapida((f) => ({ ...f, horaSinDias: e.target.value }))}
+                  />
+                </div>
+                <p className="col-span-2 text-[11px] text-ink-light">Este evento no tiene un cronograma detallado por día — esta fecha/hora es la que se guarda directo en el evento.</p>
+              </div>
+            )}
             {formEdicionRapida.dias.map((d, i) => (
               <div key={d.id} className="grid grid-cols-3 gap-2">
                 <div>
