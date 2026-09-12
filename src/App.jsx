@@ -18,6 +18,8 @@ import Compras from './pages/Compras'
 import Facturacion from './pages/Facturacion'
 import Config from './pages/Config'
 import Reportes from './pages/Reportes'
+import Gastos from './pages/Gastos'
+import StockProductos from './pages/StockProductos'
 import Checklist from './pages/Checklist'
 import Layout from './components/Layout'
 import ComingSoon from './components/ComingSoon'
@@ -60,6 +62,8 @@ export default function App() {
         <Route path="/facturacion" element={<Facturacion />} />
         <Route path="/config" element={<Config />} />
         <Route path="/reportes" element={<Reportes />} />
+        <Route path="/gastos" element={<Gastos />} />
+        <Route path="/stock-productos" element={<StockProductos />} />
         <Route path="/productos" element={<ComingSoon title="Productos" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
