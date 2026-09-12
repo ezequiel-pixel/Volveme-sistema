@@ -1,8 +1,12 @@
 import { useEffect, useState, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
-import { Search, AlertTriangle, ChevronDown, ChevronUp, Package } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { Search, AlertTriangle, ChevronDown, ChevronUp, Package, DollarSign, Boxes, Layers } from 'lucide-react'
 
 const money = (n) => n == null ? '—' : `US$ ${Number(n).toFixed(2)}`
+const moneyCorto = (n) => `US$ ${n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n.toFixed(0)}`
+
+const PALETA = ['#3d2a2e', '#ff6a1a', '#3f6bff', '#a47864', '#8c5a45', '#01269a', '#fd926f', '#5a4045']
 
 export default function StockProductos() {
   const [productos, setProductos] = useState([])
@@ -26,7 +30,7 @@ export default function StockProductos() {
   useEffect(() => { cargar() }, [])
 
   async function cargarLotes(productoId) {
-    if (lotesPorProducto[productoId]) return // ya lo tengo, no repito la consulta
+    if (lotesPorProducto[productoId]) return
     const { data } = await supabase.from('producto_lotes').select('*').eq('producto_id', productoId).order('fecha_pedido', { ascending: false })
     setLotesPorProducto((prev) => ({ ...prev, [productoId]: data || [] }))
   }
@@ -44,7 +48,25 @@ export default function StockProductos() {
     if (err) alert('No se pudo guardar el stock: ' + err.message)
   }
 
+  function filtrarPorFamilia(familia) {
+    setFiltroFamilia(familia)
+    document.getElementById('tabla-productos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   const familias = [...new Set(productos.map((p) => p.familia))].sort()
+
+  // ---- Inteligencia del panel superior — sobre TODO el catálogo, no
+  // sobre lo filtrado (así siempre da el panorama real completo) ----
+  const valorTotalInventario = productos.reduce((s, p) => s + (Number(p.stock_actual) || 0) * (Number(p.costo_unitario_usd) || 0), 0)
+  const piezasTotales = productos.reduce((s, p) => s + (Number(p.stock_actual) || 0), 0)
+  const bajoMinimoTodos = productos.filter((p) => p.stock_minimo && p.stock_actual < p.stock_minimo)
+
+  const piezasPorFamilia = familias
+    .map((f) => ({
+      familia: f,
+      piezas: productos.filter((p) => p.familia === f).reduce((s, p) => s + (Number(p.stock_actual) || 0), 0),
+    }))
+    .sort((a, b) => b.piezas - a.piezas)
 
   const filtrados = productos.filter((p) => {
     if (filtroFamilia !== 'todas' && p.familia !== filtroFamilia) return false
@@ -55,9 +77,6 @@ export default function StockProductos() {
     }
     return true
   })
-
-  const stockTotal = filtrados.reduce((s, p) => s + (Number(p.stock_actual) || 0), 0)
-  const bajoMinimo = filtrados.filter((p) => p.stock_minimo && p.stock_actual < p.stock_minimo)
 
   if (loading) return <p className="text-sm text-ink-light py-12 text-center">Cargando…</p>
 
@@ -76,10 +95,66 @@ export default function StockProductos() {
       <div className="mb-6">
         <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Módulo Productos</p>
         <h1 className="font-display text-2xl">Stock de Productos</h1>
-        <p className="text-sm text-ink-mid mt-1">Buscá por SKU Volveme (VOL-…) o por el código de fábrica original (GC…) — los dos encuentran lo mismo.</p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+      {/* ============ PANEL INTELIGENTE — el panorama antes que la lista ============ */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="border border-rule rounded-xl p-4 bg-paper-card">
+          <DollarSign size={15} className="text-wine mb-2" strokeWidth={1.75} />
+          <p className="font-display text-xl sm:text-2xl text-ink leading-none">{moneyCorto(valorTotalInventario)}</p>
+          <p className="text-[11px] text-ink-light mt-1">Valor del inventario</p>
+        </div>
+        <div className="border border-rule rounded-xl p-4 bg-paper-card">
+          <Boxes size={15} className="text-blue-dark mb-2" strokeWidth={1.75} />
+          <p className="font-display text-xl sm:text-2xl text-ink leading-none">{piezasTotales.toLocaleString('es-AR')}</p>
+          <p className="text-[11px] text-ink-light mt-1">Piezas en stock</p>
+        </div>
+        <div className={`border rounded-xl p-4 ${bajoMinimoTodos.length > 0 ? 'border-coral bg-coral-light' : 'border-rule bg-paper-card'}`}>
+          <AlertTriangle size={15} className={bajoMinimoTodos.length > 0 ? 'text-coral' : 'text-ink-light'} strokeWidth={1.75} style={{ marginBottom: 8 }} />
+          <p className={`font-display text-xl sm:text-2xl leading-none ${bajoMinimoTodos.length > 0 ? 'text-coral' : 'text-ink'}`}>{bajoMinimoTodos.length}</p>
+          <p className="text-[11px] text-ink-light mt-1">Bajo stock mínimo</p>
+        </div>
+      </div>
+
+      {bajoMinimoTodos.length > 0 && (
+        <div className="border border-coral rounded-xl bg-coral-light p-4 mb-4">
+          <p className="text-xs font-medium text-coral mb-2 flex items-center gap-1.5">
+            <AlertTriangle size={13} /> Hay que reponer
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {bajoMinimoTodos.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => { setBusqueda(p.sku_interno); document.getElementById('tabla-productos')?.scrollIntoView({ behavior: 'smooth' }) }}
+                className="text-xs bg-paper-card border border-coral/30 text-ink rounded-full px-3 py-1 hover:border-coral transition-colors"
+              >
+                {p.nombre}{p.variante ? ` · ${p.variante}` : ''} — {p.stock_actual}/{p.stock_minimo}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {familias.length > 1 && (
+        <div className="border border-rule rounded-xl bg-paper-card p-4 mb-6">
+          <p className="text-xs uppercase tracking-wide text-ink-light mb-3 flex items-center gap-1.5">
+            <Layers size={13} /> Piezas por familia — clic para filtrar
+          </p>
+          <ResponsiveContainer width="100%" height={Math.max(140, piezasPorFamilia.length * 32)}>
+            <BarChart data={piezasPorFamilia} layout="vertical" margin={{ left: 8, right: 24 }}>
+              <XAxis type="number" hide />
+              <YAxis type="category" dataKey="familia" width={140} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v) => `${v} piezas`} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
+              <Bar dataKey="piezas" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(d) => filtrarPorFamilia(d.familia)}>
+                {piezasPorFamilia.map((_, i) => <Cell key={i} fill={PALETA[i % PALETA.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ============ LISTADO — buscador + filtro + tabla ============ */}
+      <div id="tabla-productos" className="flex flex-col sm:flex-row gap-2 mb-4 scroll-mt-4">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-light" />
           <input
@@ -93,20 +168,7 @@ export default function StockProductos() {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-        <div className="border border-rule rounded-lg p-3 bg-paper-card">
-          <p className="text-[11px] uppercase tracking-wide text-ink-light">SKUs</p>
-          <p className="font-display text-xl text-ink">{filtrados.length}</p>
-        </div>
-        <div className="border border-rule rounded-lg p-3 bg-paper-card">
-          <p className="text-[11px] uppercase tracking-wide text-ink-light">Piezas en stock</p>
-          <p className="font-display text-xl text-ink">{stockTotal.toLocaleString('es-AR')}</p>
-        </div>
-        <div className={`border rounded-lg p-3 ${bajoMinimo.length > 0 ? 'border-coral bg-coral-light' : 'border-rule bg-paper-card'}`}>
-          <p className="text-[11px] uppercase tracking-wide text-ink-light">Bajo stock mínimo</p>
-          <p className={`font-display text-xl ${bajoMinimo.length > 0 ? 'text-coral' : 'text-ink'}`}>{bajoMinimo.length}</p>
-        </div>
-      </div>
+      <p className="text-xs text-ink-light mb-2">{filtrados.length} de {productos.length} SKUs</p>
 
       <div className="border border-rule rounded-lg overflow-hidden bg-paper-card">
         <table className="w-full text-sm">
