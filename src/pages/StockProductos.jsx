@@ -145,7 +145,7 @@ export default function StockProductos() {
       {familias.length > 1 && (
         <div className="rounded-2xl bg-paper-card border border-rule p-5 sm:p-6 mb-6">
           <p className="text-sm font-medium text-ink mb-4">Por familia</p>
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
             {piezasPorFamilia.map((f, i) => {
               const pct = piezasTotales > 0 ? (f.piezas / piezasTotales) * 100 : 0
               return (
@@ -155,8 +155,8 @@ export default function StockProductos() {
                   className="w-full text-left group"
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-ink group-hover:text-wine transition-colors">{f.familia}</span>
-                    <span className="text-xs text-ink-light">{f.piezas.toLocaleString('es-AR')} pzs</span>
+                    <span className="text-sm text-ink group-hover:text-wine transition-colors truncate pr-2">{f.familia}</span>
+                    <span className="text-xs text-ink-light flex-shrink-0">{f.piezas.toLocaleString('es-AR')} pzs</span>
                   </div>
                   <div className="h-2 rounded-full bg-paper-warm overflow-hidden">
                     <div

@@ -76,16 +76,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Tarjeta base del sistema — blanco puro sobre el canvas gris tenue,
-   con la sombra cálida de marca en vez de un borde duro. Las pantallas
-   nuevas la usan directo; las viejas (border+bg-paper-card) siguen
-   andando igual, no hace falta migrarlas todas de una. */
-.card {
-  @apply bg-paper-card rounded-lg shadow-soft;
-}
+@layer components {
+  /* Tarjeta base del sistema — blanco puro sobre el canvas gris tenue,
+     con la sombra cálida de marca en vez de un borde duro. Las pantallas
+     nuevas la usan directo; las viejas (border+bg-paper-card) siguen
+     andando igual, no hace falta migrarlas todas de una. */
+  .card {
+    @apply bg-paper-card rounded-lg shadow-soft;
+  }
 
-.input {
-  @apply w-full border border-rule rounded px-3 py-2 bg-white text-sm outline-none transition-colors focus:border-orange;
+  .input {
+    @apply w-full border border-rule rounded px-3 py-2 bg-white text-sm outline-none transition-colors focus:border-orange;
+  }
 }
 
 /* ===== Vista imprimible del Presupuesto ===== */
