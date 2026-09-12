@@ -7,21 +7,38 @@ import {
   ShoppingCart, Receipt, Sliders, BarChart3, Wallet,
 } from 'lucide-react'
 
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText },
-  { to: '/eventos', label: 'Eventos', icon: CalendarDays },
-  { to: '/cafe-del-mes', label: 'Café del mes', icon: Coffee },
-  { to: '/staff', label: 'Staff', icon: Users },
-  { to: '/stock', label: 'Stock', icon: PackageSearch },
-  { to: '/stock-productos', label: 'Stock Productos', icon: Boxes },
-  { to: '/equipamiento', label: 'Equipamiento', icon: Wrench },
-  { to: '/proveedores', label: 'Proveedores', icon: Building2 },
-  { to: '/compras', label: 'Compras', icon: ShoppingCart },
-  { to: '/facturacion', label: 'Facturación', icon: Receipt },
-  { to: '/gastos', label: 'Gastos', icon: Wallet },
-  { to: '/config', label: 'Config', icon: Sliders },
-  { to: '/reportes', label: 'Reportes', icon: BarChart3 },
+const navGroups = [
+  {
+    label: null, // sin encabezado — siempre visible arriba de todo
+    items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }],
+  },
+  {
+    label: 'Eventos',
+    items: [
+      { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText },
+      { to: '/eventos', label: 'Eventos', icon: CalendarDays },
+      { to: '/cafe-del-mes', label: 'Café del mes', icon: Coffee },
+      { to: '/staff', label: 'Staff', icon: Users },
+      { to: '/stock', label: 'Stock', icon: PackageSearch },
+      { to: '/equipamiento', label: 'Equipamiento', icon: Wrench },
+      { to: '/proveedores', label: 'Proveedores', icon: Building2 },
+      { to: '/compras', label: 'Compras', icon: ShoppingCart },
+      { to: '/facturacion', label: 'Facturación', icon: Receipt },
+      { to: '/gastos?unidad=barra_cafe', label: 'Gastos', icon: Wallet },
+      { to: '/config', label: 'Config', icon: Sliders },
+    ],
+  },
+  {
+    label: 'Productos',
+    items: [
+      { to: '/stock-productos', label: 'Stock', icon: Boxes },
+      { to: '/gastos?unidad=productos', label: 'Gastos', icon: Wallet },
+    ],
+  },
+  {
+    label: null,
+    items: [{ to: '/reportes', label: 'Reportes', icon: BarChart3 }],
+  },
 ]
 
 export default function Layout() {
@@ -61,27 +78,34 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                onClick={() => setAbierto(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-wine text-paper'
-                      : 'text-ink-mid hover:bg-peach/50 hover:text-ink'
-                  }`
-                }
-              >
-                <Icon size={16} strokeWidth={2} />
-                {item.label}
-              </NavLink>
-            )
-          })}
+          {navGroups.map((group, gi) => (
+            <div key={gi} className={gi > 0 ? 'pt-4' : ''}>
+              {group.label && (
+                <p className="px-3 pb-1.5 text-[10px] uppercase tracking-wider text-ink-light font-semibold">{group.label}</p>
+              )}
+              {group.items.map((item) => {
+                const Icon = item.icon
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={() => setAbierto(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors ${
+                        isActive
+                          ? 'bg-wine text-paper'
+                          : 'text-ink-mid hover:bg-peach/50 hover:text-ink'
+                      }`
+                    }
+                  >
+                    <Icon size={16} strokeWidth={2} />
+                    {item.label}
+                  </NavLink>
+                )
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="px-3 pb-5 pt-3 border-t border-rule">

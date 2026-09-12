@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Plus, X, Search, Trash2, Pencil } from 'lucide-react'
+import { Plus, X, Search, Trash2, Pencil, ArrowLeft } from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
@@ -40,7 +41,9 @@ export default function Gastos() {
   const [error, setError] = useState(null)
 
   const [filtroMes, setFiltroMes] = useState('todos')
-  const [filtroUnidad, setFiltroUnidad] = useState('todos')
+  const [searchParams] = useSearchParams()
+  const unidadDesdeUrl = searchParams.get('unidad') // 'barra_cafe' | 'productos' | null — viene del hub de cada unidad
+  const [filtroUnidad, setFiltroUnidad] = useState(unidadDesdeUrl || 'todos')
   const [busqueda, setBusqueda] = useState('')
 
   const [form, setForm] = useState(null)
@@ -144,14 +147,24 @@ export default function Gastos() {
 
   return (
     <div>
+      {unidadDesdeUrl && (
+        <Link
+          to={unidadDesdeUrl === 'productos' ? '/productos-hub' : '/eventos-hub'}
+          className="flex items-center gap-1.5 text-xs text-ink-mid hover:text-wine mb-4 w-fit"
+        >
+          <ArrowLeft size={13} /> Volver a {unidadDesdeUrl === 'productos' ? 'Productos' : 'Eventos'}
+        </Link>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Módulo Gastos</p>
-          <h1 className="font-display text-2xl">Gastos de la empresa</h1>
+          <h1 className="font-display text-2xl">
+            Gastos{unidadDesdeUrl ? ` — ${unidadDesdeUrl === 'productos' ? 'Productos' : 'Barra de Café'}` : ' de la empresa'}
+          </h1>
           <p className="text-sm text-ink-mid mt-1">Sueldos, marketing, legales, compras de producto, infraestructura — todo lo que no está atado a un evento puntual.</p>
         </div>
         <button
-          onClick={() => setForm({ ...VACIO })}
+          onClick={() => setForm({ ...VACIO, unidad_negocio: unidadDesdeUrl || VACIO.unidad_negocio })}
           className="flex items-center justify-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors flex-shrink-0"
         >
           <Plus size={15} /> Nuevo gasto
