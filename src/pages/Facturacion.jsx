@@ -49,13 +49,21 @@ export default function Facturacion() {
       .from('pagos').select('*')
       .not('evento_id', 'is', null).is('staff_id', null).is('proveedor_id', null).is('compra_id', null)
 
-    const filas = []
-    for (const ev of eventos || []) {
-      const { data: cot } = await supabase.from('cotizaciones').select('precio_final').eq('id', ev.cotizacion_id).single()
-      const esperado = cot?.precio_final || 0
+    // En LOTE — antes traía cotizaciones.precio_final una por una,
+    // adentro del for, una consulta por evento. Con varios eventos
+    // confirmados eso solo podía sentirse trabado. Ahora es una sola
+    // consulta con .in(), sin importar cuántos eventos haya.
+    const cotizacionIds = [...new Set((eventos || []).map((ev) => ev.cotizacion_id).filter(Boolean))]
+    const { data: cotizacionesData } = cotizacionIds.length
+      ? await supabase.from('cotizaciones').select('id, precio_final').in('id', cotizacionIds)
+      : { data: [] }
+    const precioPorCotizacionId = Object.fromEntries((cotizacionesData || []).map((c) => [c.id, c.precio_final]))
+
+    const filas = (eventos || []).map((ev) => {
+      const esperado = precioPorCotizacionId[ev.cotizacion_id] || 0
       const cobrado = (pagosData || []).filter((p) => p.evento_id === ev.id).reduce((s, p) => s + Number(p.monto), 0)
-      filas.push({ evento: ev, esperado, cobrado, pendiente: esperado - cobrado })
-    }
+      return { evento: ev, esperado, cobrado, pendiente: esperado - cobrado }
+    })
     setCobros(filas)
   }
 
@@ -70,17 +78,29 @@ export default function Facturacion() {
 
     const { data: pagosData } = await supabase.from('pagos').select('*').not('staff_id', 'is', null)
 
-    const filas = []
-    for (const a of asignaciones || []) {
-      if (!a.eventos || !['confirmado', 'realizado'].includes(a.eventos.estado)) continue
-      const { data: dias } = await supabase.from('evento_dias').select('*').eq('evento_id', a.evento_id).order('orden')
+    const asignacionesValidas = (asignaciones || []).filter((a) => a.eventos && ['confirmado', 'realizado'].includes(a.eventos.estado))
+
+    // En LOTE — antes traía evento_dias una por una, adentro del for,
+    // una consulta por CADA asignación de staff (podían ser decenas).
+    // Ahora es una sola consulta con .in(), agrupada en memoria.
+    const eventoIds = [...new Set(asignacionesValidas.map((a) => a.evento_id).filter(Boolean))]
+    const { data: diasData } = eventoIds.length
+      ? await supabase.from('evento_dias').select('*').in('evento_id', eventoIds).order('orden')
+      : { data: [] }
+    const diasPorEvento = {}
+    for (const d of diasData || []) {
+      (diasPorEvento[d.evento_id] ||= []).push(d)
+    }
+
+    const filas = asignacionesValidas.map((a) => {
+      const dias = diasPorEvento[a.evento_id] || []
 
       let horas = 0
       if (a.fecha) {
-        const dia = (dias || []).find((d) => d.fecha === a.fecha)
+        const dia = dias.find((d) => d.fecha === a.fecha)
         horas = dia ? horasEntre(dia.hora_inicio, dia.hora_fin) : 0
       } else {
-        horas = (dias || []).reduce((s, d) => s + horasEntre(d.hora_inicio, d.hora_fin), 0)
+        horas = dias.reduce((s, d) => s + horasEntre(d.hora_inicio, d.hora_fin), 0)
       }
 
       const tarifa = Number(a.staff?.tarifa_hora) || 0
@@ -89,8 +109,8 @@ export default function Facturacion() {
         .filter((p) => p.evento_id === a.evento_id && p.staff_id === a.staff_id)
         .reduce((s, p) => s + Number(p.monto), 0)
 
-      filas.push({ asignacion: a, horas, esperado, pagado, pendiente: esperado - pagado })
-    }
+      return { asignacion: a, horas, esperado, pagado, pendiente: esperado - pagado }
+    })
     setPagosStaff(filas)
   }
 
