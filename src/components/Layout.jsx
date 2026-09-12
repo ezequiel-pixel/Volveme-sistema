@@ -127,7 +127,7 @@ export default function Layout() {
                   }`}
                 >
                   <div className="overflow-hidden">
-                    <div className="pl-[18px] ml-4 border-l border-rule mt-1 space-y-0.5 pb-1">
+                    <div className="pl-[18px] ml-4 border-l border-rule mt-1.5 space-y-1 pb-1.5">
                       {g.items.map((item) => (
                         <FilaSimple key={item.to} to={item.to} label={item.label} icon={item.icon} onClick={() => setAbierto(false)} sub />
                       ))}
@@ -140,8 +140,25 @@ export default function Layout() {
 
           <div className="pt-2" />
 
-          {/* Reportes — único ítem simple, el otro punto que no pertenece a un solo mundo */}
-          <FilaSimple to="/reportes" label="Reportes" icon={LineChart} onClick={() => setAbierto(false)} />
+          {/* Reportes — el otro punto que no pertenece a un solo mundo.
+              Le doy el mismo tratamiento de ícono-con-degradé que a los
+              grupos (no un link plano como Panel) porque es el módulo
+              que cruza toda la empresa — merece pesar lo mismo que
+              "Eventos" o "Productos" en la jerarquía visual. */}
+          <NavLink
+            to="/reportes"
+            onClick={() => setAbierto(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-2 py-2 rounded-xl transition-colors ${
+                isActive ? 'bg-wine text-paper' : 'hover:bg-peach/40 text-ink'
+              }`
+            }
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-ink to-ink-mid shadow-sm flex-shrink-0">
+              <LineChart size={15} className="text-paper" strokeWidth={1.75} />
+            </div>
+            <span className="font-display text-[15px] flex-1 text-left">Reportes</span>
+          </NavLink>
         </nav>
 
         <div className="px-3 pb-5 pt-3 border-t border-rule">
@@ -161,9 +178,10 @@ export default function Layout() {
   )
 }
 
-/** Una fila de navegación simple — se usa tanto para Panel/Reportes
- * (ítems sueltos) como para cada sub-ítem adentro de un grupo
- * desplegado. "sub" achica un poco el ícono y el texto. */
+/** Una fila de navegación simple — se usa tanto para Panel (ítem suelto)
+ * como para cada sub-ítem adentro de un grupo desplegado. "sub" la
+ * indenta un toque menos de peso visual, pero mismo tamaño de texto
+ * que el resto — no hace falta que se vea "menor". */
 function FilaSimple({ to, label, icon: Icon, end, sub, onClick }) {
   return (
     <NavLink
@@ -171,12 +189,12 @@ function FilaSimple({ to, label, icon: Icon, end, sub, onClick }) {
       end={end}
       onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center gap-2.5 rounded-lg transition-colors ${sub ? 'px-2.5 py-1.5 text-[13px]' : 'px-2.5 py-2 text-sm'} font-medium ${
+        `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
           isActive ? 'bg-wine text-paper' : 'text-ink-mid hover:bg-peach/40 hover:text-ink'
         }`
       }
     >
-      <Icon size={sub ? 14 : 16} strokeWidth={1.75} />
+      <Icon size={16} strokeWidth={1.75} />
       {label}
     </NavLink>
   )
