@@ -254,14 +254,23 @@ function GrillaProductos({ productos, expandido, lotesPorProducto, onToggleExpan
         const estaExpandido = expandido === p.id
         return (
           <div key={p.id} className={`rounded-xl border p-3.5 transition-colors ${bajoMinimo ? 'border-coral/40 bg-coral-light/30' : 'border-rule bg-paper'}`}>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="min-w-0">
-                <p className="text-sm text-ink truncate">{p.nombre}{p.variante && <span className="text-ink-light"> · {p.variante}</span>}</p>
+            <div className="flex items-start gap-3 mb-2">
+              <div className="w-14 h-14 rounded-lg bg-paper-card border border-rule flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {p.imagen_url ? (
+                  <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-contain p-1" loading="lazy" />
+                ) : (
+                  <Package size={20} className="text-ink-light" strokeWidth={1.5} />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm text-ink truncate">{p.nombre}{p.variante && <span className="text-ink-light"> · {p.variante}</span>}</p>
+                  <button onClick={() => onToggleExpandir(p)} className="text-ink-light hover:text-ink flex-shrink-0">
+                    {estaExpandido ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                </div>
                 <p className="text-[11px] font-mono text-ink-light mt-0.5">{p.sku_interno}{p.codigo_proveedor ? ` · ${p.codigo_proveedor}` : ''}</p>
               </div>
-              <button onClick={() => onToggleExpandir(p)} className="text-ink-light hover:text-ink flex-shrink-0">
-                {estaExpandido ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-ink-light">{money(p.costo_unitario_usd)}</span>
