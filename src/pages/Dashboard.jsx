@@ -2,10 +2,28 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/useAuth'
-import { Coffee, Package, ArrowUpRight, LineChart, Users, Globe, ShoppingBag, Store } from 'lucide-react'
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
+import {
+  Coffee, Package, ArrowUpRight, ArrowUp, ArrowDown, LineChart, Users, Globe,
+  ShoppingBag, Store, TrendingUp,
+} from 'lucide-react'
 
 const money = (n) =>
   (n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
+const moneyCorto = (n) => {
+  const v = Number(n) || 0
+  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
+  if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(0)}k`
+  return `$${v}`
+}
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+function saludo() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Buen día'
+  if (h < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+}
 
 export default function Dashboard() {
   const { perfil } = useAuth()
@@ -16,36 +34,105 @@ export default function Dashboard() {
     async function cargarStats() {
       const hoy = new Date().toISOString().slice(0, 10)
       const en7dias = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
-      const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+      const hace6Meses = (() => {
+        const d = new Date()
+        d.setMonth(d.getMonth() - 5)
+        return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
+      })()
 
-      const [eventosProximosRes, facturacionMesRes, productosRes] = await Promise.all([
+      const [eventosProximosRes, facturacionMensualRes, productosRes, eventosMesRes] = await Promise.all([
         supabase
           .from('eventos')
           .select('id, nombre, fecha, cantidad_personas, clientes(nombre)')
           .gte('fecha', hoy).lte('fecha', en7dias).in('estado', ['confirmado', 'realizado'])
-          .order('fecha').limit(3),
-        supabase.from('pagos').select('monto').not('evento_id', 'is', null).is('staff_id', null).is('proveedor_id', null).is('compra_id', null).gte('fecha', inicioMes),
+          .order('fecha').limit(4),
+        supabase.from('vw_reportes_facturacion_mensual').select('*').gte('mes', hace6Meses).order('mes'),
         supabase.from('productos').select('id', { count: 'exact', head: true }).eq('activo', true),
+        supabase.from('eventos').select('id', { count: 'exact', head: true }).in('estado', ['confirmado', 'realizado']).gte('fecha', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)),
       ])
 
       const totalInvitados = (eventosProximosRes.data || []).reduce((s, e) => s + (Number(e.cantidad_personas) || 0), 0)
+      const serieMensual = (facturacionMensualRes.data || []).map((f) => ({
+        mes: MESES[new Date(f.mes + 'T00:00:00').getMonth()],
+        total: Number(f.total_facturado),
+      }))
+      const mesActual = serieMensual.at(-1)?.total || 0
+      const mesAnterior = serieMensual.at(-2)?.total || 0
+      const variacionPct = mesAnterior > 0 ? ((mesActual - mesAnterior) / mesAnterior) * 100 : null
 
       setStats({
         eventosProximos: eventosProximosRes.data || [],
         totalInvitados,
-        facturacionMes: (facturacionMesRes.data || []).reduce((s, p) => s + Number(p.monto), 0),
+        serieMensual,
+        facturacionMes: mesActual,
+        variacionPct,
+        eventosEsteMes: eventosMesRes.count ?? 0,
         skusProductos: productosRes.count ?? 0,
       })
     }
     cargarStats()
   }, [])
 
-  return (
-    <div className="max-w-3xl mx-auto w-full py-4 sm:py-8">
-      <h1 className="font-display text-3xl sm:text-4xl text-ink mb-8 sm:mb-10">Volveme</h1>
+  const subiendo = stats?.variacionPct != null && stats.variacionPct >= 0
 
+  return (
+    <div className="max-w-4xl mx-auto w-full py-4 sm:py-8">
+      <p className="text-sm text-ink-light mb-1">{saludo()} — {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+      <h1 className="font-display text-3xl sm:text-5xl text-ink mb-8 sm:mb-10">Volveme</h1>
+
+      {/* ============ HERO — tendencia de facturación, grande, con gráfico ============ */}
+      <div className="rounded-3xl border border-rule bg-paper-card p-6 sm:p-8 mb-5 sm:mb-6 overflow-hidden relative">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-2">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-ink-light mb-2 flex items-center gap-1.5">
+              <TrendingUp size={13} /> Facturación este mes
+            </p>
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <p className="font-display text-4xl sm:text-6xl text-ink leading-none">
+                {stats ? moneyCorto(stats.facturacionMes) : '—'}
+              </p>
+              {stats?.variacionPct != null && (
+                <span className={`flex items-center gap-1 text-sm font-medium rounded-full px-2.5 py-1 ${subiendo ? 'bg-teal-light text-teal-dark' : 'bg-coral-light text-coral'}`}>
+                  {subiendo ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                  {Math.abs(stats.variacionPct).toFixed(0)}%
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-ink-light mt-2">
+              {stats ? `${stats.eventosEsteMes} evento${stats.eventosEsteMes !== 1 ? 's' : ''} confirmado${stats.eventosEsteMes !== 1 ? 's' : ''} este mes` : '\u00A0'}
+            </p>
+          </div>
+          {verReportes && (
+            <Link to="/reportes" className="flex items-center gap-1.5 text-sm text-wine hover:gap-2.5 transition-all font-medium flex-shrink-0">
+              Ver reportes completos <ArrowUpRight size={15} />
+            </Link>
+          )}
+        </div>
+
+        {stats && stats.serieMensual.length > 1 && (
+          <div className="h-24 sm:h-28 -mx-2 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={stats.serieMensual} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="fillFactu" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ff6a1a" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#ff6a1a" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Tooltip
+                  formatter={(v) => money(v)}
+                  labelFormatter={(l) => l}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid rgba(61,42,46,0.09)' }}
+                />
+                <Area type="monotone" dataKey="total" stroke="#ff6a1a" strokeWidth={2.5} fill="url(#fillFactu)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* ============ LOS DOS MUNDOS ============ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-        {/* ---- EVENTOS ---- */}
         <Link
           to="/eventos-hub"
           className="group rounded-2xl border border-rule bg-paper-card p-6 transition-all duration-300 hover:border-ink/15 hover:shadow-soft-lg active:scale-[0.99] flex flex-col"
@@ -78,15 +165,14 @@ export default function Dashboard() {
 
           <div className="border-t border-rule mt-5 pt-3 flex items-center justify-between">
             <span className="text-xs text-ink-light">
-              {stats ? `${stats.eventosProximos.length} próximo${stats.eventosProximos.length !== 1 ? 's' : ''}` : '\u00A0'}
+              {stats ? `${stats.eventosProximos.length} próximo${stats.eventosProximos.length !== 1 ? 's' : ''} esta semana` : '\u00A0'}
             </span>
             {stats && stats.totalInvitados > 0 && (
-              <span className="text-xs text-ink-light">{stats.totalInvitados} invitados en total</span>
+              <span className="text-xs text-ink-light">{stats.totalInvitados} invitados</span>
             )}
           </div>
         </Link>
 
-        {/* ---- PRODUCTOS ---- */}
         <Link
           to="/productos-hub"
           className="group rounded-2xl border border-rule bg-paper-card p-6 transition-all duration-300 hover:border-ink/15 hover:shadow-soft-lg active:scale-[0.99] flex flex-col"
@@ -116,25 +202,11 @@ export default function Dashboard() {
           </div>
 
           <div className="border-t border-rule mt-5 pt-3 flex items-center justify-between">
-            <span className="text-xs text-ink-light">{stats ? `${stats.skusProductos} SKUs` : '\u00A0'}</span>
+            <span className="text-xs text-ink-light">{stats ? `${stats.skusProductos} SKUs en catálogo` : '\u00A0'}</span>
             <span className="text-xs text-ink-light">$0 este mes</span>
           </div>
         </Link>
       </div>
-
-      {verReportes && (
-        <Link
-          to="/reportes"
-          className="group flex items-center gap-3 mt-6 py-3 px-1 text-ink-mid hover:text-ink transition-colors"
-        >
-          <LineChart size={16} strokeWidth={1.75} />
-          <span className="text-sm">
-            Reportes
-            {stats && stats.facturacionMes > 0 && <span className="text-ink-light"> · {money(stats.facturacionMes)} este mes</span>}
-          </span>
-          <ArrowUpRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
-        </Link>
-      )}
     </div>
   )
 }
