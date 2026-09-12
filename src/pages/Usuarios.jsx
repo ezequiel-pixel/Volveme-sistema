@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Shield, AlertTriangle } from 'lucide-react'
+import { Shield, UserPlus, X } from 'lucide-react'
 
 const ROL_LABEL = {
   superadmin: 'Superadmin',
@@ -20,6 +20,9 @@ export default function Usuarios() {
   const [staffDisponible, setStaffDisponible] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [formInvitar, setFormInvitar] = useState(null)
+  const [invitando, setInvitando] = useState(false)
+  const [errorInvitar, setErrorInvitar] = useState(null)
 
   async function cargar() {
     setLoading(true)
@@ -51,6 +54,33 @@ export default function Usuarios() {
     if (err) alert('No se pudo vincular: ' + err.message)
   }
 
+  /** Llama a la Edge Function "invitar-usuario" — el email de
+   * invitación real de Supabase, y de una le asigna el rol elegido.
+   * No usa ninguna clave sensible acá: el navegador solo manda el
+   * token de la sesión ya logueada (la de quien está usando Usuarios),
+   * la Edge Function del otro lado verifica que sea Superadmin. */
+  async function enviarInvitacion() {
+    setInvitando(true)
+    setErrorInvitar(null)
+    const { data: sesion } = await supabase.auth.getSession()
+    const { data, error: err } = await supabase.functions.invoke('invitar-usuario', {
+      body: {
+        email: formInvitar.email,
+        rol: formInvitar.rol,
+        nombre: formInvitar.nombre || null,
+        staff_id: formInvitar.rol === 'barista' ? (formInvitar.staff_id || null) : null,
+      },
+      headers: { Authorization: `Bearer ${sesion?.session?.access_token}` },
+    })
+    setInvitando(false)
+    if (err || data?.error) {
+      setErrorInvitar(data?.error || err.message)
+      return
+    }
+    setFormInvitar(null)
+    cargar()
+  }
+
   if (loading) return <p className="text-sm text-ink-light py-12 text-center">Cargando…</p>
 
   if (error) {
@@ -65,18 +95,21 @@ export default function Usuarios() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-2">
-        <Shield size={20} className="text-wine" strokeWidth={1.75} />
-        <h1 className="font-display text-2xl">Usuarios y roles</h1>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-3">
+          <Shield size={20} className="text-wine" strokeWidth={1.75} />
+          <h1 className="font-display text-2xl">Usuarios y roles</h1>
+        </div>
+        <button
+          onClick={() => setFormInvitar({ email: '', rol: 'operacion', nombre: '', staff_id: '' })}
+          className="flex items-center gap-1.5 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors flex-shrink-0"
+        >
+          <UserPlus size={15} /> Invitar usuario
+        </button>
       </div>
       <p className="text-sm text-ink-mid mb-6">
-        Cada fila es alguien que ya tiene acceso al sistema (invitado desde Supabase). Acá se define qué puede ver cada uno — no se crean cuentas nuevas desde esta pantalla.
+        Invitá gente nueva directo desde acá, o ajustá el rol de quien ya tiene acceso.
       </p>
-
-      <div className="flex items-start gap-2 text-xs text-ink-mid bg-peach/40 rounded-lg px-4 py-3 mb-6">
-        <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-        Para invitar a alguien nuevo (un barista, alguien de Logística), primero hay que crearle el acceso desde el dashboard de Supabase (Authentication → Invite user) — recién ahí aparece acá para asignarle el rol.
-      </div>
 
       <div className="border border-rule rounded-lg overflow-hidden bg-paper-card">
         <table className="w-full text-sm">
@@ -122,6 +155,79 @@ export default function Usuarios() {
           </tbody>
         </table>
       </div>
+
+      {formInvitar && (
+        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-4 z-50" onClick={() => !invitando && setFormInvitar(null)}>
+          <div className="bg-paper-card border border-rule rounded-lg p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-display text-xl">Invitar usuario</h2>
+              <button onClick={() => setFormInvitar(null)} className="text-ink-light hover:text-ink"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-ink-mid mb-1">Email *</label>
+                <input
+                  type="email" className="input" placeholder="persona@ejemplo.com"
+                  value={formInvitar.email}
+                  onChange={(e) => setFormInvitar((f) => ({ ...f, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-ink-mid mb-1">Nombre</label>
+                <input
+                  className="input" placeholder="Opcional — para identificarlo en la lista"
+                  value={formInvitar.nombre}
+                  onChange={(e) => setFormInvitar((f) => ({ ...f, nombre: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-ink-mid mb-1">Rol</label>
+                <select
+                  className="input"
+                  value={formInvitar.rol}
+                  onChange={(e) => setFormInvitar((f) => ({ ...f, rol: e.target.value }))}
+                >
+                  <option value="superadmin">Superadmin</option>
+                  <option value="operacion">Operación</option>
+                  <option value="barista">Barista</option>
+                  <option value="logistica">Logística</option>
+                </select>
+              </div>
+              {formInvitar.rol === 'barista' && (
+                <div>
+                  <label className="block text-xs text-ink-mid mb-1">Vincular a qué barista</label>
+                  <select
+                    className="input"
+                    value={formInvitar.staff_id}
+                    onChange={(e) => setFormInvitar((f) => ({ ...f, staff_id: e.target.value }))}
+                  >
+                    <option value="">Sin vincular (lo hacés después)</option>
+                    {staffDisponible.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {errorInvitar && (
+              <p className="text-xs text-coral bg-coral-light rounded p-2 mt-4">{errorInvitar}</p>
+            )}
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={enviarInvitacion}
+                disabled={!formInvitar.email || invitando}
+                className="flex-1 bg-wine text-paper text-sm rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
+              >
+                {invitando ? 'Enviando…' : 'Enviar invitación'}
+              </button>
+              <button onClick={() => setFormInvitar(null)} className="border border-rule text-ink-mid text-sm rounded px-4 py-2 hover:border-ink hover:text-ink transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
