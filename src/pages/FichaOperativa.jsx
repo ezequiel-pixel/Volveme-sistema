@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/useAuth'
 import { calcularCotizacion, configArrayToObject, amortizacionesArrayToObject } from '../lib/pricingEngine'
 import { generarPdfBlob } from '../lib/generarPdf'
-import { ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, ShieldAlert } from 'lucide-react'
 
 function formatFecha(fechaStr) {
   if (!fechaStr) return ''
@@ -24,6 +25,7 @@ function resolverEquipoPrincipal(tipoBarra) {
 
 export default function FichaOperativa() {
   const { id } = useParams()
+  const { perfil } = useAuth()
   const [evento, setEvento] = useState(null)
   const [dias, setDias] = useState([])
   const [cotizacion, setCotizacion] = useState(null)
@@ -105,6 +107,22 @@ export default function FichaOperativa() {
   }
 
   if (loading) return <div className="text-center py-24 text-ink-light text-sm">Cargando…</div>
+
+  // Un barista solo puede ver la ficha de un evento donde está asignado
+  // — sin esto, escribiendo otra URL de evento a mano vería la ficha de
+  // cualquier otro. El resto de los roles no tiene esta restricción.
+  if (perfil?.rol === 'barista') {
+    const estaAsignado = asignaciones.some((a) => a.staff_id === perfil.staff_id)
+    if (!estaAsignado) {
+      return (
+        <div className="max-w-sm mx-auto mt-16 text-center px-4">
+          <ShieldAlert size={28} className="text-ink-light mx-auto mb-3" strokeWidth={1.5} />
+          <p className="text-sm text-ink-mid">No estás asignado a este evento.</p>
+          <Link to="/mis-eventos" className="text-xs text-wine hover:underline mt-3 inline-block">← Volver a mis eventos</Link>
+        </div>
+      )
+    }
+  }
   if (!evento) return <div className="text-center py-24 text-ink-light text-sm">No se encontró el evento.</div>
 
   const equipoPrincipal = resolverEquipoPrincipal(cotizacion?.tipo_barra)

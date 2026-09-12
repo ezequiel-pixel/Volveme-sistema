@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import {
-  LogOut, Menu, X, ChevronDown,
+  LogOut, Menu, X, ChevronDown, Shield,
   Home, FileText, CalendarDays, Coffee, Users, Package, Wrench, Building2,
   ShoppingBag, Receipt, SlidersHorizontal, LineChart, Wallet, Boxes,
 } from 'lucide-react'
@@ -48,14 +48,27 @@ function pathnameDe(to) {
   return to.split('?')[0]
 }
 
-export default function Layout() {
+export default function Layout({ rol }) {
   const [abierto, setAbierto] = useState(false)
   const location = useLocation()
+
+  // Qué grupos completos y qué ítems sueltos ve cada rol. superadmin
+  // (o rol sin definir todavía) ve todo — el resto se recorta acá,
+  // esto es solo la parte VISUAL: el bloqueo real de verdad está en
+  // App.jsx (ControlDeAcceso), esto es nomás no mostrar un link a
+  // algo a lo que igual no lo van a dejar entrar.
+  const gruposVisibles = rol === 'logistica' ? grupos.filter((g) => g.key === 'productos') : grupos
+  const gruposFiltrados = gruposVisibles.map((g) => ({
+    ...g,
+    items: rol === 'operacion' ? g.items.filter((i) => !i.to.startsWith('/gastos')) : g.items,
+  }))
+  const verReportes = rol !== 'operacion' && rol !== 'logistica'
+  const verUsuarios = !rol || rol === 'superadmin'
 
   // El grupo que contiene la ruta actual arranca desplegado solo —
   // así nunca te perdés preguntándote en qué mundo estás parado.
   const grupoActivo = grupos.find((g) => g.items.some((i) => pathnameDe(i.to) === location.pathname))?.key
-  const [expandido, setExpandido] = useState(grupoActivo || 'eventos')
+  const [expandido, setExpandido] = useState(grupoActivo || gruposFiltrados[0]?.key || 'eventos')
 
   useEffect(() => {
     if (grupoActivo) setExpandido(grupoActivo)
@@ -101,7 +114,7 @@ export default function Layout() {
           <div className="pt-2" />
 
           {/* Los dos mundos, en acordeón */}
-          {grupos.map((g) => {
+          {gruposFiltrados.map((g) => {
             const abiertoGrupo = expandido === g.key
             const GIcon = g.icon
             return (
@@ -144,21 +157,30 @@ export default function Layout() {
               Le doy el mismo tratamiento de ícono-con-degradé que a los
               grupos (no un link plano como Panel) porque es el módulo
               que cruza toda la empresa — merece pesar lo mismo que
-              "Eventos" o "Productos" en la jerarquía visual. */}
-          <NavLink
-            to="/reportes"
-            onClick={() => setAbierto(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-2 py-2 rounded-xl transition-colors ${
-                isActive ? 'bg-wine text-paper' : 'hover:bg-peach/40 text-ink'
-              }`
-            }
-          >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-ink to-ink-mid shadow-sm flex-shrink-0">
-              <LineChart size={15} className="text-paper" strokeWidth={1.75} />
-            </div>
-            <span className="font-display text-[15px] flex-1 text-left">Reportes</span>
-          </NavLink>
+              "Eventos" o "Productos" en la jerarquía visual. Operación
+              y Logística no lo ven — es información de plata de la
+              empresa, no operativa. */}
+          {verReportes && (
+            <NavLink
+              to="/reportes"
+              onClick={() => setAbierto(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-2 py-2 rounded-xl transition-colors ${
+                  isActive ? 'bg-wine text-paper' : 'hover:bg-peach/40 text-ink'
+                }`
+              }
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-ink to-ink-mid shadow-sm flex-shrink-0">
+                <LineChart size={15} className="text-paper" strokeWidth={1.75} />
+              </div>
+              <span className="font-display text-[15px] flex-1 text-left">Reportes</span>
+            </NavLink>
+          )}
+
+          {/* Usuarios — solo Superadmin administra quién ve qué */}
+          {verUsuarios && (
+            <FilaSimple to="/usuarios" label="Usuarios" icon={Shield} onClick={() => setAbierto(false)} />
+          )}
         </nav>
 
         <div className="px-3 pb-5 pt-3 border-t border-rule">
