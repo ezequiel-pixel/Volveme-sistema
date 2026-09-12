@@ -296,14 +296,6 @@ export default function Stock() {
           onCerrar={() => setFormReponer(null)}
         />
       )}
-      {formProveedor && (
-        <FormProveedor
-          form={formProveedor}
-          setForm={setFormProveedor}
-          onGuardar={guardarProveedor}
-          onCerrar={() => setFormProveedor(null)}
-        />
-      )}
     </div>
   )
 }
