@@ -32,16 +32,34 @@ const formatMes = (fechaStr) => {
 }
 
 const CATEGORIA_LABEL = {
-  pago_staff: 'Staff',
-  pago_proveedor: 'Insumos (proveedores)',
-  gasto_operativo: 'Operativo',
-  logistica_flete: 'Logística / Flete',
+  pago_staff: 'Staff (eventos)',
+  pago_proveedor: 'Insumos eventos (proveedores)',
+  gasto_operativo: 'Operativo (eventos)',
+  logistica_flete: 'Logística / Flete (eventos)',
 }
 const CATEGORIA_COLOR = {
   pago_staff: '#8c5a45',
   pago_proveedor: '#c9a487',
   gasto_operativo: '#3f6bff',
   logistica_flete: '#ff6a1a',
+}
+// Con gastos_generales sumado, puede haber 15-20 categorías distintas en
+// un mes (Sueldos, Marketing, Legales, Café, Leche, Flete, etc.) — una
+// torta con eso es ilegible. Se muestran las 6 más grandes y el resto
+// se agrupa en "Otros", con una paleta que rota sola para las que no
+// tienen color fijo asignado arriba.
+const PALETA_ROTATIVA = ['#8c5a45', '#c9a487', '#3f6bff', '#ff6a1a', '#2e6b5e', '#c25242', '#a47864', '#b7ddff']
+function armarDataPieConTope(porCategoria, top = 6) {
+  const entradas = Object.entries(porCategoria).sort((a, b) => b[1] - a[1])
+  const principales = entradas.slice(0, top)
+  const resto = entradas.slice(top)
+  const data = principales.map(([cat, total], i) => ({
+    name: CATEGORIA_LABEL[cat] || cat, value: total, color: CATEGORIA_COLOR[cat] || PALETA_ROTATIVA[i % PALETA_ROTATIVA.length],
+  }))
+  if (resto.length > 0) {
+    data.push({ name: `Otros (${resto.length})`, value: resto.reduce((s, [, v]) => s + v, 0), color: '#ccc' })
+  }
+  return data
 }
 
 const TABS = [
@@ -62,6 +80,7 @@ export default function Reportes() {
   const [utilidadMensual, setUtilidadMensual] = useState([])
   const [porCobrar, setPorCobrar] = useState([])
   const [fletePorEvento, setFletePorEvento] = useState([])
+  const [gastosPorUnidad, setGastosPorUnidad] = useState([])
   const [amortizacionMesActual, setAmortizacionMesActual] = useState(0)
   const [amortizacionCargando, setAmortizacionCargando] = useState(true)
 
@@ -89,6 +108,7 @@ export default function Reportes() {
       supabase.from('vw_reportes_utilidad_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
       supabase.from('vw_reportes_por_cobrar').select('*').order('fecha').limit(50),
       supabase.from('vw_reportes_flete_por_evento').select('*').order('fecha', { ascending: false }).limit(20),
+      supabase.from('vw_reportes_gastos_por_unidad_mensual').select('*').gte('mes', hace13MesesStr).order('mes'),
     ])
     const [
       { data: facturacion, error: e1 },
@@ -98,12 +118,13 @@ export default function Reportes() {
       { data: utilidad, error: e5 },
       { data: cobrar, error: e6 },
       { data: flete, error: e7 },
+      { data: gastosUnidad, error: e8 },
     ] = resultados
 
     // Si alguna vista todavía no existe (no se corrió el SQL de
     // Reportes) u otro error de la base, se avisa clarito en vez de
     // mostrar todo en cero en silencio como pasaba antes.
-    const primerError = [e1, e2, e3, e4, e5, e6, e7].find((e) => e)
+    const primerError = [e1, e2, e3, e4, e5, e6, e7, e8].find((e) => e)
     if (primerError) {
       setErrorCarga(primerError.message)
       setLoading(false)
@@ -117,6 +138,7 @@ export default function Reportes() {
     setUtilidadMensual(utilidad || [])
     setPorCobrar(cobrar || [])
     setFletePorEvento(flete || [])
+    setGastosPorUnidad(gastosUnidad || [])
 
     // No se espera acá — el resto de la pantalla ya tiene todo lo que
     // necesita para mostrarse. La amortización de referencia se calcula
@@ -224,13 +246,23 @@ export default function Reportes() {
   for (const g of gastosMensual.filter((g) => g.mes === mesActualStr)) {
     gastosPorCategoriaMesActual[g.categoria] = (gastosPorCategoriaMesActual[g.categoria] || 0) + Number(g.total)
   }
-  const dataGastosPie = Object.entries(gastosPorCategoriaMesActual).map(([cat, total]) => ({
-    name: CATEGORIA_LABEL[cat] || cat, value: total, color: CATEGORIA_COLOR[cat] || '#999',
-  }))
+  const dataGastosPie = armarDataPieConTope(gastosPorCategoriaMesActual)
 
   const gastosPorMes = {}
   for (const g of gastosMensual) gastosPorMes[g.mes] = (gastosPorMes[g.mes] || 0) + Number(g.total)
   const dataGastosLinea = Object.entries(gastosPorMes).map(([mes, total]) => ({ mes: formatMes(mes), total }))
+
+  // Gastos por unidad de negocio — la vista puede traer más de una fila
+  // por mes (una de gastos_generales, otra de pagos), se suman acá.
+  const gastosPorUnidadAgrupado = {}
+  for (const g of gastosPorUnidad) {
+    if (!gastosPorUnidadAgrupado[g.mes]) gastosPorUnidadAgrupado[g.mes] = { barra: 0, productos: 0 }
+    gastosPorUnidadAgrupado[g.mes].barra += Number(g.gastos_barra_cafe) || 0
+    gastosPorUnidadAgrupado[g.mes].productos += Number(g.gastos_productos) || 0
+  }
+  const dataGastosPorUnidad = Object.entries(gastosPorUnidadAgrupado)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([mes, v]) => ({ mes: formatMes(mes), barra: v.barra, productos: v.productos }))
 
   const totalGastosMesActual = Object.values(gastosPorCategoriaMesActual).reduce((s, v) => s + v, 0)
   const idxGastosMesAnterior = Object.keys(gastosPorMes).sort().indexOf(mesActualStr) - 1
@@ -343,6 +375,26 @@ export default function Reportes() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          <div className="border border-rule rounded-lg p-5 bg-paper-card mb-6">
+            <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Gastos por unidad de negocio</p>
+            <p className="text-[11px] text-ink-light mb-4">Barra de café vs Productos — los "compartido" ya vienen repartidos según su %.</p>
+            {dataGastosPorUnidad.length === 0 ? (
+              <p className="text-sm text-ink-light py-8 text-center">Sin datos todavía.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={dataGastosPorUnidad}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={moneyCorto} width={55} />
+                  <Tooltip formatter={(v) => money(v)} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="barra" fill="#8c5a45" name="Barra de café" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="productos" fill="#3f6bff" name="Productos" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="border border-rule rounded-lg overflow-hidden bg-paper-card">
