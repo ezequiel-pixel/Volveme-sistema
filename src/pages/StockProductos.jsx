@@ -1,7 +1,6 @@
 import { useEffect, useState, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { Search, AlertTriangle, ChevronDown, ChevronUp, Package, DollarSign, Boxes, Layers } from 'lucide-react'
+import { Search, AlertTriangle, ChevronDown, ChevronUp, Package } from 'lucide-react'
 
 const money = (n) => n == null ? '—' : `US$ ${Number(n).toFixed(2)}`
 const moneyCorto = (n) => `US$ ${n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n.toFixed(0)}`
@@ -99,36 +98,34 @@ export default function StockProductos() {
 
       {/* ============ PANEL INTELIGENTE — el panorama antes que la lista ============ */}
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="border border-rule rounded-xl p-4 bg-paper-card">
-          <DollarSign size={15} className="text-wine mb-2" strokeWidth={1.75} />
-          <p className="font-display text-xl sm:text-2xl text-ink leading-none">{moneyCorto(valorTotalInventario)}</p>
-          <p className="text-[11px] text-ink-light mt-1">Valor del inventario</p>
+        <div className="rounded-2xl p-4 sm:p-5 bg-peach/50">
+          <p className="font-display text-2xl sm:text-3xl text-wine leading-none mb-1.5">{moneyCorto(valorTotalInventario)}</p>
+          <p className="text-[11px] sm:text-xs text-ink-mid">Valor del inventario</p>
         </div>
-        <div className="border border-rule rounded-xl p-4 bg-paper-card">
-          <Boxes size={15} className="text-blue-dark mb-2" strokeWidth={1.75} />
-          <p className="font-display text-xl sm:text-2xl text-ink leading-none">{piezasTotales.toLocaleString('es-AR')}</p>
-          <p className="text-[11px] text-ink-light mt-1">Piezas en stock</p>
+        <div className="rounded-2xl p-4 sm:p-5 bg-blue-light/40">
+          <p className="font-display text-2xl sm:text-3xl text-blue-dark leading-none mb-1.5">{piezasTotales.toLocaleString('es-AR')}</p>
+          <p className="text-[11px] sm:text-xs text-ink-mid">Piezas en stock</p>
         </div>
-        <div className={`border rounded-xl p-4 ${bajoMinimoTodos.length > 0 ? 'border-coral bg-coral-light' : 'border-rule bg-paper-card'}`}>
-          <AlertTriangle size={15} className={bajoMinimoTodos.length > 0 ? 'text-coral' : 'text-ink-light'} strokeWidth={1.75} style={{ marginBottom: 8 }} />
-          <p className={`font-display text-xl sm:text-2xl leading-none ${bajoMinimoTodos.length > 0 ? 'text-coral' : 'text-ink'}`}>{bajoMinimoTodos.length}</p>
-          <p className="text-[11px] text-ink-light mt-1">Bajo stock mínimo</p>
+        <div className={`rounded-2xl p-4 sm:p-5 ${bajoMinimoTodos.length > 0 ? 'bg-coral-light' : 'bg-paper-warm/60'}`}>
+          <p className={`font-display text-2xl sm:text-3xl leading-none mb-1.5 ${bajoMinimoTodos.length > 0 ? 'text-coral' : 'text-ink-mid'}`}>{bajoMinimoTodos.length}</p>
+          <p className="text-[11px] sm:text-xs text-ink-mid">Para reponer</p>
         </div>
       </div>
 
       {bajoMinimoTodos.length > 0 && (
-        <div className="border border-coral rounded-xl bg-coral-light p-4 mb-4">
-          <p className="text-xs font-medium text-coral mb-2 flex items-center gap-1.5">
-            <AlertTriangle size={13} /> Hay que reponer
+        <div className="rounded-2xl bg-coral-light p-4 sm:p-5 mb-4">
+          <p className="text-sm font-medium text-coral mb-3 flex items-center gap-1.5">
+            <AlertTriangle size={14} /> Hay que reponer
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-2">
             {bajoMinimoTodos.map((p) => (
               <button
                 key={p.id}
                 onClick={() => { setBusqueda(p.sku_interno); document.getElementById('tabla-productos')?.scrollIntoView({ behavior: 'smooth' }) }}
-                className="text-xs bg-paper-card border border-coral/30 text-ink rounded-full px-3 py-1 hover:border-coral transition-colors"
+                className="w-full flex items-center justify-between text-sm bg-paper-card rounded-xl px-4 py-2.5 hover:bg-paper transition-colors text-left"
               >
-                {p.nombre}{p.variante ? ` · ${p.variante}` : ''} — {p.stock_actual}/{p.stock_minimo}
+                <span className="text-ink">{p.nombre}{p.variante ? ` · ${p.variante}` : ''}</span>
+                <span className="text-coral font-medium text-xs flex-shrink-0 ml-2">{p.stock_actual}/{p.stock_minimo}</span>
               </button>
             ))}
           </div>
@@ -136,20 +133,31 @@ export default function StockProductos() {
       )}
 
       {familias.length > 1 && (
-        <div className="border border-rule rounded-xl bg-paper-card p-4 mb-6">
-          <p className="text-xs uppercase tracking-wide text-ink-light mb-3 flex items-center gap-1.5">
-            <Layers size={13} /> Piezas por familia — clic para filtrar
-          </p>
-          <ResponsiveContainer width="100%" height={Math.max(140, piezasPorFamilia.length * 32)}>
-            <BarChart data={piezasPorFamilia} layout="vertical" margin={{ left: 8, right: 24 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="familia" width={140} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => `${v} piezas`} cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
-              <Bar dataKey="piezas" radius={[0, 4, 4, 0]} cursor="pointer" onClick={(d) => filtrarPorFamilia(d.familia)}>
-                {piezasPorFamilia.map((_, i) => <Cell key={i} fill={PALETA[i % PALETA.length]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="rounded-2xl bg-paper-card border border-rule p-5 sm:p-6 mb-6">
+          <p className="text-sm font-medium text-ink mb-4">Por familia</p>
+          <div className="space-y-4">
+            {piezasPorFamilia.map((f, i) => {
+              const pct = piezasTotales > 0 ? (f.piezas / piezasTotales) * 100 : 0
+              return (
+                <button
+                  key={f.familia}
+                  onClick={() => filtrarPorFamilia(f.familia)}
+                  className="w-full text-left group"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm text-ink group-hover:text-wine transition-colors">{f.familia}</span>
+                    <span className="text-xs text-ink-light">{f.piezas.toLocaleString('es-AR')} pzs</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-paper-warm overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: PALETA[i % PALETA.length] }}
+                    />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
