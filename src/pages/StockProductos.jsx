@@ -45,7 +45,6 @@ export default function StockProductos() {
   const [vista, setVista] = useState('familia') // 'familia' | 'pedidos'
   const [busqueda, setBusqueda] = useState('')
   const [filtroFamilia, setFiltroFamilia] = useState('todas')
-  const [expandido, setExpandido] = useState(null)
   const [familiasAbiertas, setFamiliasAbiertas] = useState(new Set())
   const [pedidosAbiertos, setPedidosAbiertos] = useState(new Set())
 
@@ -84,10 +83,6 @@ export default function StockProductos() {
   }
 
   useEffect(() => { cargar() }, [])
-
-  function toggleExpandir(p) {
-    setExpandido(expandido === p.id ? null : p.id)
-  }
 
   async function actualizarStock(p, nuevoValor) {
     const valor = nuevoValor === '' ? 0 : Number(nuevoValor)
@@ -144,7 +139,6 @@ export default function StockProductos() {
     (lotesPorProductoId[l.producto_id] ||= []).push({ ...l, dedicada: l.cantidad_cajas != null })
   }
 
-  const productoPorCodigo = Object.fromEntries(productos.filter((p) => p.codigo_proveedor).map((p) => [p.codigo_proveedor, p]))
 
   const filtrados = productos.filter((p) => {
     if (filtroFamilia !== 'todas' && p.familia !== filtroFamilia) return false
@@ -332,10 +326,7 @@ export default function StockProductos() {
           <p className="text-xs text-ink-light mb-2">{filtrados.length} de {productos.length} SKUs</p>
           <GrillaProductos
             productos={filtrados}
-            expandido={expandido}
             lotesPorProductoId={lotesPorProductoId}
-            productoPorCodigo={productoPorCodigo}
-            onToggleExpandir={toggleExpandir}
             onActualizarStock={actualizarStock}
           />
         </>
@@ -361,10 +352,7 @@ export default function StockProductos() {
                   <div className="px-4 sm:px-5 pb-4 pt-1 border-t border-rule">
                     <GrillaProductos
                       productos={productosFamilia}
-                      expandido={expandido}
                       lotesPorProductoId={lotesPorProductoId}
-                      onToggleExpandir={toggleExpandir}
-                      productoPorCodigo={productoPorCodigo}
                       onActualizarStock={actualizarStock}
                     />
                   </div>
@@ -384,7 +372,7 @@ export default function StockProductos() {
  * desktop, en vez de una tabla angosta de una sola columna. Se usa
  * tanto para resultados de búsqueda (flat) como adentro de cada
  * familia desplegada. */
-function GrillaProductos({ productos, expandido, lotesPorProductoId, productoPorCodigo, onToggleExpandir, onActualizarStock }) {
+function GrillaProductos({ productos, lotesPorProductoId, onActualizarStock }) {
   if (productos.length === 0) {
     return <p className="text-sm text-ink-light py-8 text-center">Sin resultados.</p>
   }
@@ -392,12 +380,8 @@ function GrillaProductos({ productos, expandido, lotesPorProductoId, productoPor
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {productos.map((p) => {
         const bajoMinimo = p.stock_minimo > 0 && p.stock_actual < p.stock_minimo
-        const estaExpandido = expandido === p.id
         const lotes = lotesPorProductoId[p.id] || []
-        const cajasDedicadas = lotes.filter((l) => l.dedicada).reduce((s, l) => s + (Number(l.cantidad_cajas) || 0), 0)
-        const tieneCombinada = lotes.some((l) => !l.dedicada)
         const codigosVecinos = p.codigo_proveedor ? (VECINOS_DE_CAJA[p.codigo_proveedor] || []) : []
-        const nombresVecinos = codigosVecinos.map((c) => productoPorCodigo[c]?.nombre).filter(Boolean)
         return (
           <div key={p.id} className={`rounded-xl border p-3.5 transition-colors ${bajoMinimo ? 'border-coral/40 bg-coral-light/30' : 'border-rule bg-paper'}`}>
             <div className="flex items-start gap-3 mb-2">
@@ -409,32 +393,12 @@ function GrillaProductos({ productos, expandido, lotesPorProductoId, productoPor
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm text-ink truncate">{p.nombre}{p.variante && <span className="text-ink-light"> · {p.variante}</span>}</p>
-                  <button onClick={() => onToggleExpandir(p)} className="text-ink-light hover:text-ink flex-shrink-0">
-                    {estaExpandido ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                </div>
+                <p className="text-sm text-ink truncate">{p.nombre}{p.variante && <span className="text-ink-light"> · {p.variante}</span>}</p>
                 <p className="text-[11px] font-mono text-ink-light mt-0.5">{p.sku_interno}{p.codigo_proveedor ? ` · ${p.codigo_proveedor}` : ''}</p>
-                {/* Dónde está físicamente — siempre visible, no hace
-                    falta expandir para saber si hay que buscar en más
-                    de una caja. */}
-                {lotes.length > 0 && (
-                  <p className="text-[11px] text-ink-light mt-0.5">
-                    {cajasDedicadas > 0 && `${cajasDedicadas} caja${cajasDedicadas > 1 ? 's' : ''} propia${cajasDedicadas > 1 ? 's' : ''}`}
-                    {cajasDedicadas > 0 && tieneCombinada && ' + '}
-                    {tieneCombinada && (
-                      nombresVecinos.length > 0 ? (
-                        <span className="text-orange">combinada con {nombresVecinos.join(', ')}</span>
-                      ) : (
-                        <span className="text-orange">combinada (no identificado con qué)</span>
-                      )
-                    )}
-                  </p>
-                )}
               </div>
             </div>
-            <div className="flex items-center justify-between gap-2">
+
+            <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs text-ink-light">{money(p.costo_unitario_usd)}</span>
               <div className="flex items-center gap-1.5">
                 {bajoMinimo && <AlertTriangle size={12} className="text-coral" />}
@@ -446,29 +410,23 @@ function GrillaProductos({ productos, expandido, lotesPorProductoId, productoPor
                 />
               </div>
             </div>
-            {estaExpandido && (
-              <div className="mt-3 pt-3 border-t border-rule">
-                <p className="text-[10px] uppercase tracking-wide text-ink-light mb-1.5 flex items-center gap-1">
-                  <Package size={11} /> Lotes
-                </p>
-                {lotes.length === 0 ? (
-                  <p className="text-xs text-ink-light">Sin lotes registrados.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {lotes.map((l) => (
-                      <div key={l.id} className="text-[11px] text-ink-mid">
-                        <span className="font-medium text-ink">{l.numero_factura}</span>
-                        {l.fecha_pedido && <span> · {new Date(l.fecha_pedido + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
-                        <span> · {l.cantidad_total} pzs</span>
-                        <span className={l.dedicada ? 'text-teal-dark' : 'text-orange'}>
-                          {' · '}{l.dedicada
-                            ? `${l.cantidad_cajas} caja${l.cantidad_cajas > 1 ? 's' : ''} propia${l.cantidad_cajas > 1 ? 's' : ''}`
-                            : nombresVecinos.length > 0 ? `caja combinada con ${nombresVecinos.join(', ')}` : 'caja combinada (no identificado con qué)'}
-                        </span>
-                      </div>
-                    ))}
+
+            {/* Desglose por caja — siempre a la vista, sin clic. Si
+                está en una sola caja no hace falta desglosar nada, el
+                número de arriba ya alcanza. Si está repartido, cada
+                línea muestra el código propio y, en la combinada, el
+                código del otro producto con el que comparte caja. */}
+            {lotes.length > 1 && (
+              <div className="pt-2 border-t border-rule space-y-1">
+                {lotes.map((l, i) => (
+                  <div key={l.id} className="flex items-center justify-between text-[11px] font-mono">
+                    <span className={l.dedicada ? 'text-ink-mid' : 'text-orange'}>
+                      Caja {i + 1} {p.codigo_proveedor}
+                      {!l.dedicada && (codigosVecinos.length > 0 ? ` ${codigosVecinos.join(' ')}` : ' (?)')}
+                    </span>
+                    <span className="font-medium text-ink flex-shrink-0 ml-2">{l.cantidad_total}</span>
                   </div>
-                )}
+                ))}
               </div>
             )}
           </div>
