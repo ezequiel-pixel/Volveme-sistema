@@ -9,14 +9,16 @@ const PALETA = ['#3d2a2e', '#ff6a1a', '#3f6bff', '#a47864', '#8c5a45', '#01269a'
 
 export default function StockProductos() {
   const [productos, setProductos] = useState([])
-  const [lotesPorProducto, setLotesPorProducto] = useState({})
+  const [todosLosLotes, setTodosLosLotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const [vista, setVista] = useState('familia') // 'familia' | 'pedidos'
   const [busqueda, setBusqueda] = useState('')
   const [filtroFamilia, setFiltroFamilia] = useState('todas')
   const [expandido, setExpandido] = useState(null)
   const [familiasAbiertas, setFamiliasAbiertas] = useState(new Set())
+  const [pedidosAbiertos, setPedidosAbiertos] = useState(new Set())
 
   function toggleFamilia(familia) {
     setFamiliasAbiertas((prev) => {
@@ -27,27 +29,35 @@ export default function StockProductos() {
     })
   }
 
+  function togglePedido(factura) {
+    setPedidosAbiertos((prev) => {
+      const next = new Set(prev)
+      if (next.has(factura)) next.delete(factura)
+      else next.add(factura)
+      return next
+    })
+  }
+
   async function cargar() {
     setLoading(true)
     setError(null)
-    const { data, error: err } = await supabase.from('productos').select('*').eq('activo', true).order('familia').order('sku_interno')
-    if (err) { setError(err.message); setLoading(false); return }
+    const [{ data, error: err }, { data: lotes, error: errLotes }] = await Promise.all([
+      supabase.from('productos').select('*').eq('activo', true).order('familia').order('sku_interno'),
+      supabase.from('producto_lotes').select('*, productos(nombre, variante, sku_interno, codigo_proveedor, imagen_url)').order('fecha_pedido', { ascending: false }),
+    ])
+    if (err || errLotes) { setError((err || errLotes).message); setLoading(false); return }
     setProductos(data || [])
+    setTodosLosLotes(lotes || [])
+    // La primera vez, el pedido más reciente arranca abierto — así no
+    // hay que hacer doble clic para ver lo último que llegó.
+    if (lotes && lotes.length > 0) setPedidosAbiertos(new Set([lotes[0].numero_factura]))
     setLoading(false)
   }
 
   useEffect(() => { cargar() }, [])
 
-  async function cargarLotes(productoId) {
-    if (lotesPorProducto[productoId]) return
-    const { data } = await supabase.from('producto_lotes').select('*').eq('producto_id', productoId).order('fecha_pedido', { ascending: false })
-    setLotesPorProducto((prev) => ({ ...prev, [productoId]: data || [] }))
-  }
-
   function toggleExpandir(p) {
-    if (expandido === p.id) { setExpandido(null); return }
-    setExpandido(p.id)
-    cargarLotes(p.id)
+    setExpandido(expandido === p.id ? null : p.id)
   }
 
   async function actualizarStock(p, nuevoValor) {
@@ -76,6 +86,34 @@ export default function StockProductos() {
       piezas: productos.filter((p) => p.familia === f).reduce((s, p) => s + (Number(p.stock_actual) || 0), 0),
     }))
     .sort((a, b) => b.piezas - a.piezas)
+
+  // ---- Agrupado por pedido/factura — "qué trajo cada envío", al
+  // revés del agrupado por familia ("qué tengo de cada producto"). Un
+  // mismo pedido puede traer el mismo SKU en más de una caja (llegó
+  // repartido) — se listan las líneas tal cual están en el packing
+  // list, sin fusionar, así se ve la realidad física del envío.
+  const pedidosAgrupados = {}
+  for (const l of todosLosLotes) {
+    const factura = l.numero_factura || 'Sin factura'
+    if (!pedidosAgrupados[factura]) {
+      pedidosAgrupados[factura] = { factura, fecha: l.fecha_pedido, lineas: [], totalCajas: 0, totalPiezas: 0 }
+    }
+    pedidosAgrupados[factura].lineas.push(l)
+    pedidosAgrupados[factura].totalCajas += Number(l.cantidad_cajas) || 0
+    pedidosAgrupados[factura].totalPiezas += Number(l.cantidad_total) || 0
+  }
+  const pedidosOrdenados = Object.values(pedidosAgrupados).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))
+
+  // ---- Lotes por producto, calculado directo de todosLosLotes (ya
+  // están todos cargados, no hace falta pedirlos de nuevo al expandir
+  // una tarjeta). Cada lote se clasifica como "caja dedicada" (tiene
+  // cantidad_cajas propia en el packing list) o "combinada" (sin
+  // cantidad_cajas — esas unidades vinieron dentro de una caja
+  // compartida con otro producto, no tienen caja propia).
+  const lotesPorProductoId = {}
+  for (const l of todosLosLotes) {
+    (lotesPorProductoId[l.producto_id] ||= []).push({ ...l, dedicada: l.cantidad_cajas != null })
+  }
 
   const filtrados = productos.filter((p) => {
     if (filtroFamilia !== 'todas' && p.familia !== filtroFamilia) return false
@@ -171,6 +209,74 @@ export default function StockProductos() {
         </div>
       )}
 
+      {/* ============ SELECTOR DE VISTA — por familia, o por pedido/caja ============ */}
+      <div className="flex gap-1 mb-4">
+        {[['familia', 'Por familia'], ['pedidos', 'Por pedido / caja']].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setVista(key)}
+            className={`text-xs px-3.5 py-1.5 rounded-full border transition-colors ${
+              vista === key ? 'border-wine bg-wine text-paper' : 'border-rule text-ink-mid hover:border-wine'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {vista === 'pedidos' ? (
+        <div className="space-y-2">
+          {pedidosOrdenados.length === 0 && (
+            <p className="text-sm text-ink-light py-8 text-center border border-rule rounded-2xl">Sin pedidos registrados todavía.</p>
+          )}
+          {pedidosOrdenados.map((pedido) => {
+            const abierto = pedidosAbiertos.has(pedido.factura)
+            return (
+              <div key={pedido.factura} className="rounded-2xl border border-rule bg-paper-card overflow-hidden">
+                <button
+                  onClick={() => togglePedido(pedido.factura)}
+                  className="w-full flex items-center justify-between px-4 sm:px-5 py-3.5 hover:bg-paper/60 transition-colors"
+                >
+                  <div className="text-left">
+                    <span className="text-sm font-medium text-ink">{pedido.factura}</span>
+                    {pedido.fecha && <span className="text-xs text-ink-light ml-2">{new Date(pedido.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
+                  </div>
+                  <span className="flex items-center gap-3 text-xs text-ink-light">
+                    {pedido.totalCajas} cajas · {pedido.totalPiezas.toLocaleString('es-AR')} pzs
+                    {abierto ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                  </span>
+                </button>
+                {abierto && (
+                  <div className="border-t border-rule divide-y divide-rule">
+                    {pedido.lineas.map((l) => (
+                      <div key={l.id} className="flex items-center gap-3 px-4 sm:px-5 py-2.5">
+                        <div className="w-9 h-9 rounded-lg bg-paper border border-rule flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {l.productos?.imagen_url ? (
+                            <img src={l.productos.imagen_url} alt="" className="w-full h-full object-contain p-0.5" loading="lazy" />
+                          ) : (
+                            <Package size={14} className="text-ink-light" strokeWidth={1.5} />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-ink truncate">
+                            {l.productos?.nombre}{l.productos?.variante && <span className="text-ink-light"> · {l.productos.variante}</span>}
+                          </p>
+                          <p className="text-[11px] font-mono text-ink-light">{l.productos?.sku_interno}</p>
+                        </div>
+                        <div className="text-right text-xs text-ink-mid flex-shrink-0">
+                          {l.cantidad_cajas ? <p>{l.cantidad_cajas} caja{l.cantidad_cajas > 1 ? 's' : ''} × {l.cantidad_por_caja}</p> : null}
+                          <p className="font-medium text-ink">{l.cantidad_total} pzs</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+      <>
       {/* ============ LISTADO — buscador + filtro, agrupado por familia ============ */}
       <div id="tabla-productos" className="flex flex-col sm:flex-row gap-2 mb-4 scroll-mt-4">
         <div className="relative flex-1">
@@ -196,7 +302,7 @@ export default function StockProductos() {
           <GrillaProductos
             productos={filtrados}
             expandido={expandido}
-            lotesPorProducto={lotesPorProducto}
+            lotesPorProductoId={lotesPorProductoId}
             onToggleExpandir={toggleExpandir}
             onActualizarStock={actualizarStock}
           />
@@ -224,7 +330,7 @@ export default function StockProductos() {
                     <GrillaProductos
                       productos={productosFamilia}
                       expandido={expandido}
-                      lotesPorProducto={lotesPorProducto}
+                      lotesPorProductoId={lotesPorProductoId}
                       onToggleExpandir={toggleExpandir}
                       onActualizarStock={actualizarStock}
                     />
@@ -235,6 +341,8 @@ export default function StockProductos() {
           })}
         </div>
       )}
+      </>
+      )}
     </div>
   )
 }
@@ -243,7 +351,7 @@ export default function StockProductos() {
  * desktop, en vez de una tabla angosta de una sola columna. Se usa
  * tanto para resultados de búsqueda (flat) como adentro de cada
  * familia desplegada. */
-function GrillaProductos({ productos, expandido, lotesPorProducto, onToggleExpandir, onActualizarStock }) {
+function GrillaProductos({ productos, expandido, lotesPorProductoId, onToggleExpandir, onActualizarStock }) {
   if (productos.length === 0) {
     return <p className="text-sm text-ink-light py-8 text-center">Sin resultados.</p>
   }
@@ -252,6 +360,9 @@ function GrillaProductos({ productos, expandido, lotesPorProducto, onToggleExpan
       {productos.map((p) => {
         const bajoMinimo = p.stock_minimo > 0 && p.stock_actual < p.stock_minimo
         const estaExpandido = expandido === p.id
+        const lotes = lotesPorProductoId[p.id] || []
+        const cajasDedicadas = lotes.filter((l) => l.dedicada).reduce((s, l) => s + (Number(l.cantidad_cajas) || 0), 0)
+        const tieneCombinada = lotes.some((l) => !l.dedicada)
         return (
           <div key={p.id} className={`rounded-xl border p-3.5 transition-colors ${bajoMinimo ? 'border-coral/40 bg-coral-light/30' : 'border-rule bg-paper'}`}>
             <div className="flex items-start gap-3 mb-2">
@@ -270,6 +381,16 @@ function GrillaProductos({ productos, expandido, lotesPorProducto, onToggleExpan
                   </button>
                 </div>
                 <p className="text-[11px] font-mono text-ink-light mt-0.5">{p.sku_interno}{p.codigo_proveedor ? ` · ${p.codigo_proveedor}` : ''}</p>
+                {/* Dónde está físicamente — siempre visible, no hace
+                    falta expandir para saber si hay que buscar en más
+                    de una caja. */}
+                {lotes.length > 0 && (
+                  <p className="text-[11px] text-ink-light mt-0.5">
+                    {cajasDedicadas > 0 && `${cajasDedicadas} caja${cajasDedicadas > 1 ? 's' : ''} propia${cajasDedicadas > 1 ? 's' : ''}`}
+                    {cajasDedicadas > 0 && tieneCombinada && ' + '}
+                    {tieneCombinada && <span className="text-orange">combinada con otro producto</span>}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center justify-between gap-2">
@@ -289,17 +410,18 @@ function GrillaProductos({ productos, expandido, lotesPorProducto, onToggleExpan
                 <p className="text-[10px] uppercase tracking-wide text-ink-light mb-1.5 flex items-center gap-1">
                   <Package size={11} /> Lotes
                 </p>
-                {!lotesPorProducto[p.id] ? (
-                  <p className="text-xs text-ink-light">Cargando…</p>
-                ) : lotesPorProducto[p.id].length === 0 ? (
+                {lotes.length === 0 ? (
                   <p className="text-xs text-ink-light">Sin lotes registrados.</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {lotesPorProducto[p.id].map((l) => (
+                    {lotes.map((l) => (
                       <div key={l.id} className="text-[11px] text-ink-mid">
                         <span className="font-medium text-ink">{l.numero_factura}</span>
                         {l.fecha_pedido && <span> · {new Date(l.fecha_pedido + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
                         <span> · {l.cantidad_total} pzs</span>
+                        <span className={l.dedicada ? 'text-teal-dark' : 'text-orange'}>
+                          {' · '}{l.dedicada ? `${l.cantidad_cajas} caja${l.cantidad_cajas > 1 ? 's' : ''} propia${l.cantidad_cajas > 1 ? 's' : ''}` : 'caja combinada'}
+                        </span>
                       </div>
                     ))}
                   </div>
