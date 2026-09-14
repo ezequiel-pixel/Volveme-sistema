@@ -96,7 +96,13 @@ export default function StockProductos() {
     document.getElementById('tabla-productos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const familias = [...new Set(productos.map((p) => p.familia))].sort()
+  // "Kits Volveme" va primero, el resto alfabético — son el producto
+  // más terminado/vendible, tiene sentido que se vean de entrada.
+  const familias = [...new Set(productos.map((p) => p.familia))].sort((a, b) => {
+    if (a === 'Kits Volveme') return -1
+    if (b === 'Kits Volveme') return 1
+    return a.localeCompare(b)
+  })
 
   // ---- Inteligencia del panel superior — sobre TODO el catálogo, no
   // sobre lo filtrado (así siempre da el panorama real completo) ----
