@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
-import { Package, Boxes, ShoppingBag, Truck, Wallet, ArrowLeft, ArrowUpRight } from 'lucide-react'
+import { Package, Boxes, ShoppingBag, Truck, Wallet, TrendingUp, Ship, ArrowLeft, ArrowUpRight } from 'lucide-react'
 
 const modulos = [
   { to: '/stock-productos', icon: Boxes, titulo: 'Stock', descripcion: 'Catálogo completo — SKU propio, código de fábrica, lotes de importación.', gradient: 'from-blue-dark to-blue', disponible: true },
+  { to: '/precios', icon: TrendingUp, titulo: 'Precios', descripcion: 'PVP y margen real por canal — Mercado Libre vs E-commerce propio.', gradient: 'from-teal to-blue-dark', disponible: true },
+  { to: '/importacion', icon: Ship, titulo: 'Importación', descripcion: 'Costos reales de nacionalización, multiplicador por categoría de producto.', gradient: 'from-brown to-terracota', disponible: true },
   { to: '/gastos?unidad=productos', icon: Wallet, titulo: 'Gastos', descripcion: 'Marketing, legales, compras de producto — los gastos de esta unidad.', gradient: 'from-wine-mid to-wine', disponible: true },
   { to: '/productos/ventas', icon: ShoppingBag, titulo: 'Ventas', descripcion: 'E-commerce propio, Mercado Libre y B2B directo — todavía no existe.', gradient: 'from-orange to-coral', disponible: false },
   { to: '/productos/compras', icon: Truck, titulo: 'Compras', descripcion: 'Pedidos a fábricas de China — todavía no existe.', gradient: 'from-terracota to-brown', disponible: false },

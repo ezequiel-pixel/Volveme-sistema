@@ -24,6 +24,8 @@ import EventosHub from './pages/EventosHub'
 import ProductosHub from './pages/ProductosHub'
 import MisEventos from './pages/MisEventos'
 import Usuarios from './pages/Usuarios'
+import Precios from './pages/Precios'
+import Importacion from './pages/Importacion'
 import Checklist from './pages/Checklist'
 import Layout from './components/Layout'
 import ComingSoon from './components/ComingSoon'
@@ -34,7 +36,7 @@ import ComingSoon from './components/ComingSoon'
 // entrar a algo que no le toca (o a "/" directamente).
 const PERMISOS_POR_ROL = {
   operacion: { inicio: '/', puede: (p) => !p.startsWith('/gastos') && !p.startsWith('/reportes') && !p.startsWith('/usuarios') },
-  logistica: { inicio: '/productos-hub', puede: (p) => (p.startsWith('/productos-hub') || p.startsWith('/stock-productos') || p.startsWith('/gastos')) && !p.startsWith('/usuarios') },
+  logistica: { inicio: '/productos-hub', puede: (p) => (p.startsWith('/productos-hub') || p.startsWith('/stock-productos') || p.startsWith('/gastos') || p.startsWith('/precios') || p.startsWith('/importacion')) && !p.startsWith('/usuarios') },
   barista: { inicio: '/mis-eventos', puede: (p) => p.startsWith('/mis-eventos') || (p.startsWith('/eventos/') && p.endsWith('/ficha')) },
 }
 
@@ -105,6 +107,8 @@ export default function App() {
           <Route path="/productos-hub" element={<ProductosHub />} />
           <Route path="/productos" element={<ComingSoon title="Productos" />} />
           <Route path="/usuarios" element={<Usuarios />} />
+          <Route path="/precios" element={<Precios />} />
+          <Route path="/importacion" element={<Importacion />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
