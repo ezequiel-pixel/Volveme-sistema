@@ -416,7 +416,7 @@ function GrillaProductos({ productos, lotesPorProductoId, onActualizarStock }) {
                 número de arriba ya alcanza. Si está repartido, cada
                 línea muestra el código propio y, en la combinada, el
                 código del otro producto con el que comparte caja. */}
-            {lotes.length > 1 && (
+            {lotes.length >= 1 && (
               <div className="pt-2 border-t border-rule space-y-1">
                 {lotes.map((l, i) => (
                   <div key={l.id} className="flex items-center justify-between text-[11px] font-mono">
