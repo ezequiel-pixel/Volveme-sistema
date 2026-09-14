@@ -99,7 +99,7 @@ export default function Precios() {
               <th className="px-3 py-2.5 font-medium">Producto</th>
               <th className="px-3 py-2.5 font-medium text-right">Mult.</th>
               <th className="px-3 py-2.5 font-medium text-right">Costo landed</th>
-              <th className="px-3 py-2.5 font-medium text-right">PVP</th>
+              <th className="px-3 py-2.5 font-medium text-right">PVP publicación</th>
               <th className="px-3 py-2.5 font-medium text-right bg-blue-light/20">EC neto</th>
               <th className="px-3 py-2.5 font-medium text-right bg-blue-light/20">EC %</th>
               <th className="px-3 py-2.5 font-medium text-right bg-peach/30">ML neto</th>
@@ -126,7 +126,7 @@ export default function Precios() {
                   <td className="px-3 py-2.5 text-right text-ink-light text-xs">{p.multiplicador_landed?.toFixed(2)}x</td>
                   <td className="px-3 py-2.5 text-right text-ink-mid">{money(p.costo_landed_ars)}</td>
                   <td className="px-3 py-2.5 text-right font-medium text-ink">
-                    {money(p.pvp_base_ars)}
+                    {money(p.pvp_publicacion_ars)}
                     {p.uso_piso_margen && <span className="ml-1.5 text-[10px] text-orange" title={`Subido por piso de margen mínimo (${(p.margen_minimo_pct*100).toFixed(0)}%)`}>●</span>}
                   </td>
                   <td className="px-3 py-2.5 text-right bg-blue-light/10">{money(p.ec_recibis_neto_ars)}</td>
