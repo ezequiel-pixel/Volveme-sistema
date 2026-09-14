@@ -27,6 +27,19 @@ export default function Precios() {
 
   useEffect(() => { cargar() }, [])
 
+  // Al editar el multiplicador de un producto puntual, se guarda en
+  // productos.multiplicador_pvp_custom y se vuelve a traer SOLO esa
+  // fila de la vista (que ya recalculó todo el resto: PVP, margen,
+  // recibís neto) — así queda consistente sin recalcular a mano acá.
+  async function actualizarMultiplicador(producto, nuevoValor) {
+    const valor = nuevoValor === '' ? null : Number(nuevoValor)
+    const { error: err } = await supabase.from('productos').update({ multiplicador_pvp_custom: valor }).eq('id', producto.id)
+    if (err) { alert('No se pudo guardar: ' + err.message); return }
+    const { data: fila, error: err2 } = await supabase.from('vw_precios_por_canal').select('*').eq('id', producto.id).single()
+    if (err2) { alert('Se guardó, pero no se pudo refrescar la fila: ' + err2.message); return }
+    setProductos((prev) => prev.map((p) => (p.id === producto.id ? fila : p)))
+  }
+
   if (loading) return <p className="text-sm text-ink-light py-12 text-center">Cargando…</p>
 
   if (error) {
@@ -89,7 +102,7 @@ export default function Precios() {
         value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
       />
       <p className="text-[11px] text-ink-light mb-4">
-        <span className="text-orange">●</span> el ×3 no alcanzaba para el margen mínimo de esa categoría — el precio se subió para cubrirlo
+        El multiplicador es editable por producto — tocalo y cambia el precio y margen de ESE producto nomás. "sug." es el que haría falta para un margen mínimo del 30% en los dos canales — es solo referencia, no se aplica solo.
       </p>
 
       <div className="border border-rule rounded-lg overflow-hidden bg-paper-card overflow-x-auto">
@@ -97,8 +110,8 @@ export default function Precios() {
           <thead>
             <tr className="border-b border-rule text-left text-[11px] uppercase tracking-wide text-ink-light">
               <th className="px-3 py-2.5 font-medium">Producto</th>
-              <th className="px-3 py-2.5 font-medium text-right">Mult.</th>
               <th className="px-3 py-2.5 font-medium text-right">Costo landed</th>
+              <th className="px-3 py-2.5 font-medium text-right">Mult. PVP</th>
               <th className="px-3 py-2.5 font-medium text-right">PVP publicación</th>
               <th className="px-3 py-2.5 font-medium text-right bg-blue-light/20">EC neto</th>
               <th className="px-3 py-2.5 font-medium text-right bg-blue-light/20">EC %</th>
@@ -123,12 +136,21 @@ export default function Precios() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right text-ink-light text-xs">{p.multiplicador_landed?.toFixed(2)}x</td>
                   <td className="px-3 py-2.5 text-right text-ink-mid">{money(p.costo_landed_ars)}</td>
-                  <td className="px-3 py-2.5 text-right font-medium text-ink">
-                    {money(p.pvp_publicacion_ars)}
-                    {p.uso_piso_margen && <span className="ml-1.5 text-[10px] text-orange" title={`Subido por piso de margen mínimo (${(p.margen_minimo_pct*100).toFixed(0)}%)`}>●</span>}
+                  <td className="px-3 py-2.5 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="text-[10px] text-ink-light" title="Multiplicador sugerido para 30% de margen mínimo en los dos canales">
+                        sug. {p.multiplicador_sugerido_30?.toFixed(1)}x
+                      </span>
+                      <input
+                        type="number" step="0.1" min="0"
+                        defaultValue={p.multiplicador_pvp}
+                        onBlur={(e) => { if (Number(e.target.value) !== p.multiplicador_pvp) actualizarMultiplicador(p, e.target.value) }}
+                        className="w-16 text-right border border-rule rounded px-1.5 py-1 text-sm bg-paper-card"
+                      />
+                    </div>
                   </td>
+                  <td className="px-3 py-2.5 text-right font-medium text-ink">{money(p.pvp_publicacion_ars)}</td>
                   <td className="px-3 py-2.5 text-right bg-blue-light/10">{money(p.ec_recibis_neto_ars)}</td>
                   <td className={`px-3 py-2.5 text-right bg-blue-light/10 font-medium ${p.ec_margen_neto_pct < 0.15 ? 'text-coral' : 'text-teal-dark'}`}>{pct(p.ec_margen_neto_pct)}</td>
                   <td className="px-3 py-2.5 text-right bg-peach/15">{money(p.ml_recibis_neto_ars)}</td>
