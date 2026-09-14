@@ -85,9 +85,12 @@ export default function Precios() {
       </div>
 
       <input
-        className="input mb-4" placeholder="Buscar por código, nombre, variante…"
+        className="input mb-2" placeholder="Buscar por código, nombre, variante…"
         value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
       />
+      <p className="text-[11px] text-ink-light mb-4">
+        <span className="text-orange">●</span> el ×3 no alcanzaba para el margen mínimo de esa categoría — el precio se subió para cubrirlo
+      </p>
 
       <div className="border border-rule rounded-lg overflow-hidden bg-paper-card overflow-x-auto">
         <table className="w-full text-sm">
@@ -122,7 +125,10 @@ export default function Precios() {
                   </td>
                   <td className="px-3 py-2.5 text-right text-ink-light text-xs">{p.multiplicador_landed?.toFixed(2)}x</td>
                   <td className="px-3 py-2.5 text-right text-ink-mid">{money(p.costo_landed_ars)}</td>
-                  <td className="px-3 py-2.5 text-right font-medium text-ink">{money(p.pvp_base_ars)}</td>
+                  <td className="px-3 py-2.5 text-right font-medium text-ink">
+                    {money(p.pvp_base_ars)}
+                    {p.uso_piso_margen && <span className="ml-1.5 text-[10px] text-orange" title={`Subido por piso de margen mínimo (${(p.margen_minimo_pct*100).toFixed(0)}%)`}>●</span>}
+                  </td>
                   <td className="px-3 py-2.5 text-right bg-blue-light/10">{money(p.ec_recibis_neto_ars)}</td>
                   <td className={`px-3 py-2.5 text-right bg-blue-light/10 font-medium ${p.ec_margen_neto_pct < 0.15 ? 'text-coral' : 'text-teal-dark'}`}>{pct(p.ec_margen_neto_pct)}</td>
                   <td className="px-3 py-2.5 text-right bg-peach/15">{money(p.ml_recibis_neto_ars)}</td>
