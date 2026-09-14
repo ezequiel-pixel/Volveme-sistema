@@ -41,6 +41,13 @@ export default function Precios() {
     setProductos((prev) => prev.map((p) => (p.id === producto.id ? fila : p)))
   }
 
+  async function toggleVendeML(producto) {
+    const nuevoValor = !producto.vende_ml
+    setProductos((prev) => prev.map((p) => (p.id === producto.id ? { ...p, vende_ml: nuevoValor } : p)))
+    const { error: err } = await supabase.from('productos').update({ vende_ml: nuevoValor }).eq('id', producto.id)
+    if (err) { alert('No se pudo guardar: ' + err.message); setProductos((prev) => prev.map((p) => (p.id === producto.id ? { ...p, vende_ml: !nuevoValor } : p))) }
+  }
+
   if (loading) return <p className="text-sm text-ink-light py-12 text-center">Cargando…</p>
 
   if (error) {
@@ -59,7 +66,8 @@ export default function Precios() {
     return `${p.sku_interno} ${p.codigo_proveedor || ''} ${p.nombre} ${p.variante || ''}`.toLowerCase().includes(q)
   })
 
-  const promedioMargenML = productos.length ? productos.reduce((s, p) => s + (p.ml_margen_neto_pct || 0), 0) / productos.length : 0
+  const productosEnML = productos.filter((p) => p.vende_ml)
+  const promedioMargenML = productosEnML.length ? productosEnML.reduce((s, p) => s + (p.ml_margen_neto_pct || 0), 0) / productosEnML.length : 0
   const promedioMargenEC = productos.length ? productos.reduce((s, p) => s + (p.ec_margen_neto_pct || 0), 0) / productos.length : 0
 
   return (
@@ -95,6 +103,7 @@ export default function Precios() {
         <div className="rounded-2xl p-4 sm:p-5 bg-peach/50">
           <p className="flex items-center gap-1.5 text-xs text-ink-mid mb-1"><ShoppingBag size={13} /> Margen neto promedio — Mercado Libre</p>
           <p className="font-display text-2xl text-wine">{pct(promedioMargenML)}</p>
+          <p className="text-[10px] text-ink-light mt-0.5">solo los {productosEnML.length} productos que van a ML — no todo el catálogo</p>
         </div>
       </div>
 
@@ -119,12 +128,13 @@ export default function Precios() {
               <th className="px-3 py-2.5 font-medium text-right bg-blue-light/20">EC %</th>
               <th className="px-3 py-2.5 font-medium text-right bg-peach/30">ML neto</th>
               <th className="px-3 py-2.5 font-medium text-right bg-peach/30">ML %</th>
+              <th className="px-3 py-2.5 font-medium text-center bg-peach/30">¿ML?</th>
               <th className="px-3 py-2.5 font-medium text-center">Mejor canal</th>
             </tr>
           </thead>
           <tbody>
             {filtrados.map((p) => {
-              const mejorCanal = (p.ec_margen_neto_pct || 0) >= (p.ml_margen_neto_pct || 0) ? 'EC' : 'ML'
+              const mejorCanal = p.vende_ml ? ((p.ec_margen_neto_pct || 0) >= (p.ml_margen_neto_pct || 0) ? 'EC' : 'ML') : 'EC'
               return (
                 <tr key={p.id} className="border-b border-rule last:border-0 hover:bg-paper/60">
                   <td className="px-3 py-2.5">
@@ -162,8 +172,17 @@ export default function Precios() {
                   </td>
                   <td className="px-3 py-2.5 text-right bg-blue-light/10">{money(p.ec_recibis_neto_ars)}</td>
                   <td className={`px-3 py-2.5 text-right bg-blue-light/10 font-medium ${p.ec_margen_neto_pct < 0.15 ? 'text-coral' : 'text-teal-dark'}`}>{pct(p.ec_margen_neto_pct)}</td>
-                  <td className="px-3 py-2.5 text-right bg-peach/15">{money(p.ml_recibis_neto_ars)}</td>
-                  <td className={`px-3 py-2.5 text-right bg-peach/15 font-medium ${p.ml_margen_neto_pct < 0.15 ? 'text-coral' : 'text-teal-dark'}`}>{pct(p.ml_margen_neto_pct)}</td>
+                  {p.vende_ml ? (
+                    <>
+                      <td className="px-3 py-2.5 text-right bg-peach/15">{money(p.ml_recibis_neto_ars)}</td>
+                      <td className={`px-3 py-2.5 text-right bg-peach/15 font-medium ${p.ml_margen_neto_pct < 0.15 ? 'text-coral' : 'text-teal-dark'}`}>{pct(p.ml_margen_neto_pct)}</td>
+                    </>
+                  ) : (
+                    <td colSpan={2} className="px-3 py-2.5 text-center bg-peach/10 text-[11px] text-ink-light">No en ML</td>
+                  )}
+                  <td className="px-3 py-2.5 text-center">
+                    <input type="checkbox" checked={p.vende_ml} onChange={() => toggleVendeML(p)} className="w-4 h-4 accent-wine cursor-pointer" />
+                  </td>
                   <td className="px-3 py-2.5 text-center">
                     <span className={`text-[11px] px-2 py-0.5 rounded-full ${mejorCanal === 'EC' ? 'bg-blue-light text-blue-dark' : 'bg-peach text-orange'}`}>{mejorCanal}</span>
                   </td>
