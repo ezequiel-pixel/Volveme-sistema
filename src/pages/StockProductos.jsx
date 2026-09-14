@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Search, AlertTriangle, ChevronDown, ChevronUp, Package } from 'lucide-react'
 
 const money = (n) => n == null ? '—' : `US$ ${Number(n).toFixed(2)}`
+const moneyArs = (n) => n == null ? '—' : `$${Math.round(n).toLocaleString('es-AR')}`
 const moneyCorto = (n) => `US$ ${n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n.toFixed(0)}`
 
 const PALETA = ['#3d2a2e', '#ff6a1a', '#3f6bff', '#a47864', '#8c5a45', '#01269a', '#fd926f', '#5a4045']
@@ -69,12 +70,18 @@ export default function StockProductos() {
   async function cargar() {
     setLoading(true)
     setError(null)
-    const [{ data, error: err }, { data: lotes, error: errLotes }] = await Promise.all([
+    const [{ data, error: err }, { data: lotes, error: errLotes }, { data: precios, error: errPrecios }] = await Promise.all([
       supabase.from('productos').select('*').eq('activo', true).order('familia').order('sku_interno'),
       supabase.from('producto_lotes').select('*, productos(nombre, variante, sku_interno, codigo_proveedor, imagen_url)').order('fecha_pedido', { ascending: false }),
+      supabase.from('vw_precios_por_canal').select('id, pvp_publicacion_ars'),
     ])
     if (err || errLotes) { setError((err || errLotes).message); setLoading(false); return }
-    setProductos(data || [])
+    // El PVP viene de la vista de Precios, no de productos — si esa
+    // vista todavía no está corrida, seguimos igual (el precio
+    // simplemente no se muestra) en vez de romper toda la pantalla.
+    const pvpPorId = Object.fromEntries((precios || []).map((p) => [p.id, p.pvp_publicacion_ars]))
+    const conPvp = (data || []).map((p) => ({ ...p, pvp_publicacion_ars: pvpPorId[p.id] ?? null }))
+    setProductos(conPvp)
     setTodosLosLotes(lotes || [])
     // La primera vez, el pedido más reciente arranca abierto — así no
     // hay que hacer doble clic para ver lo último que llegó.
@@ -405,7 +412,7 @@ function GrillaProductos({ productos, lotesPorProductoId, onActualizarStock }) {
             </div>
 
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs text-ink-light">{money(p.costo_unitario_usd)}</span>
+              <span className="text-xs text-ink-light">{moneyArs(p.pvp_publicacion_ars)}</span>
               <div className="flex items-center gap-1.5">
                 {bajoMinimo && <AlertTriangle size={12} className="text-coral" />}
                 <input
