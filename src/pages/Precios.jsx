@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Package, TrendingUp, AlertTriangle, Globe, ShoppingBag } from 'lucide-react'
 
 const money = (n) => (n == null ? '—' : `$${Math.round(n).toLocaleString('es-AR')}`)
+const moneyUsd = (n) => (n == null ? '—' : `US$${Number(n).toFixed(2)}`)
 const pct = (n) => (n == null ? '—' : `${(n * 100).toFixed(1)}%`)
 
 export default function Precios() {
@@ -102,7 +103,7 @@ export default function Precios() {
         value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
       />
       <p className="text-[11px] text-ink-light mb-4">
-        El multiplicador es editable por producto — tocalo y cambia el precio y margen de ESE producto nomás. "sug." es el que haría falta para un margen mínimo del 30% en los dos canales — es solo referencia, no se aplica solo.
+        "Pagaste en China" es lo que costó en fábrica. "Puesto en tu casa" ya incluye flete, aranceles y todo el despacho — dólares arriba, pesos abajo. El multiplicador es editable por producto — tocalo y cambia el precio y margen de ESE producto nomás. "sug." es el que haría falta para un margen mínimo del 30% en los dos canales — es solo referencia, no se aplica solo.
       </p>
 
       <div className="border border-rule rounded-lg overflow-hidden bg-paper-card overflow-x-auto">
@@ -110,7 +111,8 @@ export default function Precios() {
           <thead>
             <tr className="border-b border-rule text-left text-[11px] uppercase tracking-wide text-ink-light">
               <th className="px-3 py-2.5 font-medium">Producto</th>
-              <th className="px-3 py-2.5 font-medium text-right">Costo landed</th>
+              <th className="px-3 py-2.5 font-medium text-right">Pagaste en China</th>
+              <th className="px-3 py-2.5 font-medium text-right">Puesto en tu casa</th>
               <th className="px-3 py-2.5 font-medium text-right">Mult. PVP</th>
               <th className="px-3 py-2.5 font-medium text-right">PVP publicación</th>
               <th className="px-3 py-2.5 font-medium text-right bg-blue-light/20">EC neto</th>
@@ -136,7 +138,11 @@ export default function Precios() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right text-ink-mid">{money(p.costo_landed_ars)}</td>
+                  <td className="px-3 py-2.5 text-right text-ink-mid whitespace-nowrap">{moneyUsd(p.costo_exw_usd)}</td>
+                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                    <p className="text-ink">{moneyUsd(p.costo_landed_usd)}</p>
+                    <p className="text-[10px] text-ink-light">{money(p.costo_landed_ars)}</p>
+                  </td>
                   <td className="px-3 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <span className="text-[10px] text-ink-light" title="Multiplicador sugerido para 30% de margen mínimo en los dos canales">
@@ -150,7 +156,10 @@ export default function Precios() {
                       />
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-right font-medium text-ink">{money(p.pvp_publicacion_ars)}</td>
+                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                    <p className="font-medium text-ink">{money(p.pvp_publicacion_ars)}</p>
+                    {config && <p className="text-[10px] text-ink-light">{moneyUsd(p.pvp_publicacion_ars / config.tipo_cambio_ref)}</p>}
+                  </td>
                   <td className="px-3 py-2.5 text-right bg-blue-light/10">{money(p.ec_recibis_neto_ars)}</td>
                   <td className={`px-3 py-2.5 text-right bg-blue-light/10 font-medium ${p.ec_margen_neto_pct < 0.15 ? 'text-coral' : 'text-teal-dark'}`}>{pct(p.ec_margen_neto_pct)}</td>
                   <td className="px-3 py-2.5 text-right bg-peach/15">{money(p.ml_recibis_neto_ars)}</td>
