@@ -7,6 +7,35 @@ const moneyCorto = (n) => `US$ ${n >= 1000 ? (n / 1000).toFixed(1) + 'k' : n.toF
 
 const PALETA = ['#3d2a2e', '#ff6a1a', '#3f6bff', '#a47864', '#8c5a45', '#01269a', '#fd926f', '#5a4045']
 
+// Vecinos de caja inferidos del packing list GC20260307S — el archivo
+// no tiene una columna de "caja física", pero las líneas sin cantidad
+// de cajas propia (combinadas) aparecen agrupadas en filas
+// consecutivas de la planilla, que es como estos listados chinos
+// suelen anotar "esto entró junto en la caja sobrante". Es una
+// inferencia, no un dato certero — se marca así en pantalla.
+const VECINOS_DE_CAJA = {
+  'GCT037': ['GCP005-1'], 'GCP005-1': ['GCT037'],
+  'GCM009-600': ['GCCM038-120T', 'GCF008-2', 'GCS004'],
+  'GCS004': ['GCCM038-120T', 'GCF008-2', 'GCM009-600'],
+  'GCF008-2': ['GCCM038-120T', 'GCM009-600', 'GCS004'],
+  'GCCM038-120T': ['GCCM038-90M', 'GCCM038-90T', 'GCF008-2', 'GCM009-600', 'GCS004'],
+  'GCP007-1': ['GCA021'], 'GCA021': ['GCP007-1'],
+  'GCD002': ['GCB004-1', 'GCD001-8', 'GCD016-2'],
+  'GCD001-8': ['GCB004-1', 'GCD002', 'GCD016-2'],
+  'GCD016-2': ['GCB004-1', 'GCD001-8', 'GCD002'],
+  'GCB004-1': ['GCD001-8', 'GCD002', 'GCD016-2'],
+  'GCB010': ['GCA004', 'GCA020-1', 'GCKB015'],
+  'GCA004': ['GCA020-1', 'GCB010', 'GCKB015'],
+  'GCKB015': ['GCA004', 'GCA020-1', 'GCB010'],
+  'GCA020-1': ['GCA004', 'GCB010', 'GCKB015'],
+  'GCCM038-90M': ['GCCM038-120T', 'GCCM038-90T'],
+  'GCCM038-90T': ['GCCM038-120T', 'GCCM038-90M'],
+  'GCB001': ['GCV007'], 'GCV007': ['GCB001'],
+  'GCGM036': ['GCA004-3'], 'GCA004-3': ['GCGM036'],
+  'GCC065': ['GCA033'], 'GCA033': ['GCC065'],
+  'GCA005': ['GCGP004-8'], 'GCGP004-8': ['GCA005'],
+}
+
 export default function StockProductos() {
   const [productos, setProductos] = useState([])
   const [todosLosLotes, setTodosLosLotes] = useState([])
@@ -114,6 +143,8 @@ export default function StockProductos() {
   for (const l of todosLosLotes) {
     (lotesPorProductoId[l.producto_id] ||= []).push({ ...l, dedicada: l.cantidad_cajas != null })
   }
+
+  const productoPorCodigo = Object.fromEntries(productos.filter((p) => p.codigo_proveedor).map((p) => [p.codigo_proveedor, p]))
 
   const filtrados = productos.filter((p) => {
     if (filtroFamilia !== 'todas' && p.familia !== filtroFamilia) return false
@@ -303,6 +334,7 @@ export default function StockProductos() {
             productos={filtrados}
             expandido={expandido}
             lotesPorProductoId={lotesPorProductoId}
+            productoPorCodigo={productoPorCodigo}
             onToggleExpandir={toggleExpandir}
             onActualizarStock={actualizarStock}
           />
@@ -332,6 +364,7 @@ export default function StockProductos() {
                       expandido={expandido}
                       lotesPorProductoId={lotesPorProductoId}
                       onToggleExpandir={toggleExpandir}
+                      productoPorCodigo={productoPorCodigo}
                       onActualizarStock={actualizarStock}
                     />
                   </div>
@@ -351,7 +384,7 @@ export default function StockProductos() {
  * desktop, en vez de una tabla angosta de una sola columna. Se usa
  * tanto para resultados de búsqueda (flat) como adentro de cada
  * familia desplegada. */
-function GrillaProductos({ productos, expandido, lotesPorProductoId, onToggleExpandir, onActualizarStock }) {
+function GrillaProductos({ productos, expandido, lotesPorProductoId, productoPorCodigo, onToggleExpandir, onActualizarStock }) {
   if (productos.length === 0) {
     return <p className="text-sm text-ink-light py-8 text-center">Sin resultados.</p>
   }
@@ -363,6 +396,8 @@ function GrillaProductos({ productos, expandido, lotesPorProductoId, onToggleExp
         const lotes = lotesPorProductoId[p.id] || []
         const cajasDedicadas = lotes.filter((l) => l.dedicada).reduce((s, l) => s + (Number(l.cantidad_cajas) || 0), 0)
         const tieneCombinada = lotes.some((l) => !l.dedicada)
+        const codigosVecinos = p.codigo_proveedor ? (VECINOS_DE_CAJA[p.codigo_proveedor] || []) : []
+        const nombresVecinos = codigosVecinos.map((c) => productoPorCodigo[c]?.nombre).filter(Boolean)
         return (
           <div key={p.id} className={`rounded-xl border p-3.5 transition-colors ${bajoMinimo ? 'border-coral/40 bg-coral-light/30' : 'border-rule bg-paper'}`}>
             <div className="flex items-start gap-3 mb-2">
@@ -388,7 +423,13 @@ function GrillaProductos({ productos, expandido, lotesPorProductoId, onToggleExp
                   <p className="text-[11px] text-ink-light mt-0.5">
                     {cajasDedicadas > 0 && `${cajasDedicadas} caja${cajasDedicadas > 1 ? 's' : ''} propia${cajasDedicadas > 1 ? 's' : ''}`}
                     {cajasDedicadas > 0 && tieneCombinada && ' + '}
-                    {tieneCombinada && <span className="text-orange">combinada con otro producto</span>}
+                    {tieneCombinada && (
+                      nombresVecinos.length > 0 ? (
+                        <span className="text-orange">combinada con {nombresVecinos.join(', ')}</span>
+                      ) : (
+                        <span className="text-orange">combinada (no identificado con qué)</span>
+                      )
+                    )}
                   </p>
                 )}
               </div>
@@ -420,7 +461,9 @@ function GrillaProductos({ productos, expandido, lotesPorProductoId, onToggleExp
                         {l.fecha_pedido && <span> · {new Date(l.fecha_pedido + 'T00:00:00').toLocaleDateString('es-AR')}</span>}
                         <span> · {l.cantidad_total} pzs</span>
                         <span className={l.dedicada ? 'text-teal-dark' : 'text-orange'}>
-                          {' · '}{l.dedicada ? `${l.cantidad_cajas} caja${l.cantidad_cajas > 1 ? 's' : ''} propia${l.cantidad_cajas > 1 ? 's' : ''}` : 'caja combinada'}
+                          {' · '}{l.dedicada
+                            ? `${l.cantidad_cajas} caja${l.cantidad_cajas > 1 ? 's' : ''} propia${l.cantidad_cajas > 1 ? 's' : ''}`
+                            : nombresVecinos.length > 0 ? `caja combinada con ${nombresVecinos.join(', ')}` : 'caja combinada (no identificado con qué)'}
                         </span>
                       </div>
                     ))}
