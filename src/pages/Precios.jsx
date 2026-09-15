@@ -48,6 +48,12 @@ export default function Precios() {
     if (err) { alert('No se pudo guardar: ' + err.message); setProductos((prev) => prev.map((p) => (p.id === producto.id ? { ...p, vende_ml: !nuevoValor } : p))) }
   }
 
+  async function actualizarMlItemId(producto, valor) {
+    setProductos((prev) => prev.map((p) => (p.id === producto.id ? { ...p, ml_item_id: valor } : p)))
+    const { error: err } = await supabase.from('productos').update({ ml_item_id: valor || null }).eq('id', producto.id)
+    if (err) alert('No se pudo guardar: ' + err.message)
+  }
+
   if (loading) return <p className="text-sm text-ink-light py-12 text-center">Cargando…</p>
 
   if (error) {
@@ -181,7 +187,16 @@ export default function Precios() {
                     <td colSpan={2} className="px-3 py-2.5 text-center bg-peach/10 text-[11px] text-ink-light">No en ML</td>
                   )}
                   <td className="px-3 py-2.5 text-center">
-                    <input type="checkbox" checked={p.vende_ml} onChange={() => toggleVendeML(p)} className="w-4 h-4 accent-wine cursor-pointer" />
+                    <div className="flex flex-col items-center gap-1">
+                      <input type="checkbox" checked={p.vende_ml} onChange={() => toggleVendeML(p)} className="w-4 h-4 accent-wine cursor-pointer" />
+                      {p.vende_ml && (
+                        <input
+                          type="text" placeholder="ID de ML" defaultValue={p.ml_item_id || ''}
+                          onBlur={(e) => { if (e.target.value !== (p.ml_item_id || '')) actualizarMlItemId(p, e.target.value) }}
+                          className="w-20 text-center border border-rule rounded px-1 py-0.5 text-[10px] bg-paper-card"
+                        />
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     <span className={`text-[11px] px-2 py-0.5 rounded-full ${mejorCanal === 'EC' ? 'bg-blue-light text-blue-dark' : 'bg-peach text-orange'}`}>{mejorCanal}</span>
