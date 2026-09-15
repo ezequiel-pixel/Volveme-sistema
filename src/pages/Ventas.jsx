@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Search, Plus, Trash2, ShoppingBag, Globe, Store, Package, X, RefreshCw, Link2 } from 'lucide-react'
+import { Search, Plus, Trash2, ShoppingBag, Globe, Store, Package, X } from 'lucide-react'
 
 const money = (n) => (n == null ? '—' : `$${Math.round(n).toLocaleString('es-AR')}`)
 
@@ -13,9 +13,6 @@ const CANALES = [
 export default function Ventas() {
   const [productos, setProductos] = useState([])
   const [ventas, setVentas] = useState([])
-  const [conexionML, setConexionML] = useState(null)
-  const [sincronizando, setSincronizando] = useState(false)
-  const [resultadoSync, setResultadoSync] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [guardando, setGuardando] = useState(false)
@@ -29,32 +26,17 @@ export default function Ventas() {
   async function cargar() {
     setLoading(true)
     setError(null)
-    const [{ data: p, error: err1 }, { data: v, error: err2 }, { data: conex }] = await Promise.all([
+    const [{ data: p, error: err1 }, { data: v, error: err2 }] = await Promise.all([
       supabase.from('vw_precios_por_canal').select('id, sku_interno, nombre, variante, pvp_publicacion_ars, imagen_url'),
       supabase.from('ventas').select('*, venta_items(cantidad, precio_unitario, productos(nombre, sku_interno))').order('creado_en', { ascending: false }).limit(30),
-      supabase.from('ml_conexion').select('*').eq('id', 1).maybeSingle(),
     ])
     if (err1 || err2) { setError((err1 || err2).message); setLoading(false); return }
     setProductos(p || [])
     setVentas(v || [])
-    setConexionML(conex)
     setLoading(false)
   }
 
   useEffect(() => { cargar() }, [])
-
-  async function sincronizarML() {
-    setSincronizando(true)
-    setResultadoSync(null)
-    const { data: sesion } = await supabase.auth.getSession()
-    const { data, error: err } = await supabase.functions.invoke('ml-sincronizar-ventas', {
-      headers: { Authorization: `Bearer ${sesion?.session?.access_token}` },
-    })
-    setSincronizando(false)
-    if (err || data?.error) { setResultadoSync({ error: data?.error || err.message }); return }
-    setResultadoSync(data)
-    cargar()
-  }
 
   const resultadosBusqueda = busqueda.length < 2 ? [] : productos.filter((p) => {
     const q = busqueda.toLowerCase()
@@ -128,44 +110,6 @@ export default function Ventas() {
       <div className="mb-6">
         <p className="text-xs uppercase tracking-wide text-ink-light mb-1">Módulo Productos</p>
         <h1 className="font-display text-2xl">Registrar venta</h1>
-      </div>
-
-      {/* Conexión con Mercado Libre */}
-      <div className="rounded-2xl border border-rule bg-paper-card p-4 sm:p-5 mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <Link2 size={16} className={conexionML?.access_token ? 'text-teal-dark' : 'text-ink-light'} />
-            <div>
-              <p className="text-sm text-ink">
-                Mercado Libre {conexionML?.access_token ? <span className="text-teal-dark font-medium">conectado</span> : <span className="text-ink-light">no conectado</span>}
-              </p>
-              {conexionML?.ultima_sincronizacion && (
-                <p className="text-[11px] text-ink-light">Última sincronización: {new Date(conexionML.ultima_sincronizacion).toLocaleString('es-AR')}</p>
-              )}
-            </div>
-          </div>
-          {conexionML?.access_token ? (
-            <button
-              onClick={sincronizarML} disabled={sincronizando}
-              className="flex items-center gap-1.5 text-sm bg-wine text-paper rounded px-4 py-2 hover:bg-wine-mid transition-colors disabled:opacity-50"
-            >
-              <RefreshCw size={14} className={sincronizando ? 'animate-spin' : ''} /> {sincronizando ? 'Sincronizando…' : 'Sincronizar ventas de ML'}
-            </button>
-          ) : (
-            <p className="text-xs text-ink-light max-w-md">
-              Para conectar, hace falta registrar una app en developers.mercadolibre.com.ar y armar el link de autorización una sola vez — es un paso técnico, coordinalo con quien te ayude a desplegar las Edge Functions.
-            </p>
-          )}
-        </div>
-        {resultadoSync && !resultadoSync.error && (
-          <p className="text-xs text-teal-dark mt-3">
-            {resultadoSync.cargadas} venta(s) nueva(s) cargada(s) · {resultadoSync.saltadas_ya_existian} ya existían
-            {resultadoSync.items_sin_mapear?.length > 0 && (
-              <span className="block text-coral mt-1">⚠ {resultadoSync.items_sin_mapear.length} producto(s) vendido(s) en ML no tienen ml_item_id cargado en Precios — no se pudieron sumar al stock: {resultadoSync.items_sin_mapear.join(', ')}</span>
-            )}
-          </p>
-        )}
-        {resultadoSync?.error && <p className="text-xs text-coral mt-3">{resultadoSync.error}</p>}
       </div>
 
       {/* Canal */}

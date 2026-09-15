@@ -39,6 +39,7 @@ const grupos = [
     gradient: 'from-blue-dark to-blue',
     items: [
       { to: '/stock-productos', label: 'Stock', icon: Boxes },
+      { to: '/ventas', label: 'Ventas', icon: ShoppingBag },
       { to: '/precios', label: 'Precios', icon: TrendingUp },
       { to: '/importacion', label: 'Importación', icon: Ship },
       { to: '/gastos?unidad=productos', label: 'Gastos', icon: Wallet },
