@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import {
   LogOut, Menu, X, ChevronDown, Shield,
   Home, FileText, CalendarDays, Coffee, Users, Package, Wrench, Building2,
-  ShoppingBag, Receipt, SlidersHorizontal, LineChart, Wallet, Boxes, TrendingUp, Ship,
+  ShoppingBag, Receipt, SlidersHorizontal, LineChart, Wallet, Boxes, TrendingUp, Ship, Truck,
 } from 'lucide-react'
 
 // Los dos "mundos" del sistema — mismo tratamiento visual (ícono en
@@ -40,6 +40,7 @@ const grupos = [
     items: [
       { to: '/stock-productos', label: 'Stock', icon: Boxes },
       { to: '/ventas', label: 'Ventas', icon: ShoppingBag },
+      { to: '/logistica', label: 'Logística', icon: Truck },
       { to: '/precios', label: 'Precios', icon: TrendingUp },
       { to: '/importacion', label: 'Importación', icon: Ship },
       { to: '/gastos?unidad=productos', label: 'Gastos', icon: Wallet },
